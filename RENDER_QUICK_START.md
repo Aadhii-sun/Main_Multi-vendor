@@ -30,10 +30,10 @@ git push origin main
    - `NODE_ENV` = `production`
    - `PORT` = `5000`
    - `MONGO_URI` = `mongodb+srv://YOUR_MONGO_URI`
-   - `JWT_SECRET` = `Adi@123456789_secret`
+   - `JWT_SECRET` = `your_jwt_secret_here`
    - `EMAIL_USER` = `adithyananimon9@gmail.com`
-   - `EMAIL_PASS` = `ronzvngcgxhbwdbf`
-   - `STRIPE_SECRET_KEY` = `sk_test_51SJodUIBVKasxBKaw83EvqNfA26vsX4Ti0E3IHj4HxmyUvg9vqpqFPco0lunZx2C6Pex63cwnKLdzjf0vdUFuXrb00HkjHf79b`
+   - `EMAIL_PASS` = `your_email_app_password_here`
+   - `STRIPE_SECRET_KEY` = `sk_test_your_stripe_secret_key_here`
    - `STRIPE_WEBHOOK_SECRET` = `whsec_xxxxx`
    - `CLIENT_URL` = `https://maniproject-frontend.onrender.com`
 
