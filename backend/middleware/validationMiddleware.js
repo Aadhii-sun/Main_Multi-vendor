@@ -91,11 +91,56 @@ const validateOrder = [
   handleValidationErrors
 ];
 
+// Coupon validation rules
+const validateCoupon = [
+  body('code')
+    .trim()
+    .isLength({ min: 6, max: 12 })
+    .matches(/^[A-Z0-9]+$/)
+    .withMessage('Coupon code must be 6-12 characters, uppercase letters and numbers only'),
+  body('name')
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Coupon name must be between 2 and 100 characters'),
+  body('type')
+    .isIn(['percentage', 'fixed_amount', 'free_shipping', 'buy_one_get_one'])
+    .withMessage('Invalid coupon type'),
+  body('value')
+    .isFloat({ min: 0.01 })
+    .withMessage('Coupon value must be a positive number'),
+  body('minimumAmount')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Minimum amount must be a non-negative number'),
+  body('maximumDiscount')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Maximum discount must be a non-negative number'),
+  body('usageLimit')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Usage limit must be a positive integer'),
+  body('userLimit')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('User limit must be a positive integer'),
+  body('startDate')
+    .optional()
+    .isISO8601()
+    .withMessage('Invalid start date format'),
+  body('endDate')
+    .optional()
+    .isISO8601()
+    .withMessage('Invalid end date format'),
+  handleValidationErrors
+];
+
 module.exports = {
   validateUserSignup,
   validateUserSignin,
   validateProduct,
   validateOrder,
+  validateCoupon,
   handleValidationErrors
 };
 

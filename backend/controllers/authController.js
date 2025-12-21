@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
+const NotificationService = require('../services/notificationService');
 
 const generateToken = (id, role) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '1h' });
@@ -17,13 +18,32 @@ exports.signup = async (req, res) => {
     if (userExists) {
       return res.status(400).json({ message: 'User already exists' });
     }
+
+    // Only allow admin role if registering through admin endpoint
+    // Default to 'user' role - only set 'seller' if explicitly provided
+    const allowedRoles = ['user', 'seller'];
+    const userRole = (role && allowedRoles.includes(role)) ? role : 'user';
+    
+    // Log for debugging
+    console.log(`Registration - Email: ${email}, Requested role: ${role}, Assigned role: ${userRole}`);
+
     const user = await User.create({
       name,
       email,
       password,
-      role
+      role: userRole
     });
+
     const token = generateToken(user._id, user.role);
+
+    // Send welcome email
+    try {
+      await NotificationService.sendWelcomeEmail(user);
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError);
+      // Don't fail registration if email fails
+    }
+
     res.status(201).json({
       token,
       user: {
@@ -38,6 +58,36 @@ exports.signup = async (req, res) => {
   }
 };
 
+exports.createAdmin = async (req, res) => {
+  const { name, email, password } = req.body;
+  try {
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: 'Admin already exists' });
+    }
+
+    const admin = await User.create({
+      name,
+      email,
+      password,
+      role: 'admin'
+    });
+
+    const token = generateToken(admin._id, admin.role);
+    res.status(201).json({
+      token,
+      admin: {
+        _id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 exports.signin = async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -45,10 +95,34 @@ exports.signin = async (req, res) => {
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
+
+    // Restrict admin login to only the specific admin email
+    const ALLOWED_ADMIN_EMAIL = 'adithyananimon9@gmail.com';
+    if (user.role === 'admin' && user.email.toLowerCase() !== ALLOWED_ADMIN_EMAIL.toLowerCase()) {
+      return res.status(403).json({ 
+        message: 'Admin access is restricted. Only authorized administrators can login.' 
+      });
+    }
+
+    // Check if user has valid OTP (OTP login instead of password)
+    // For admin, allow OTP login if they have a valid OTP
+    if (user.isOTPValid() && user.role !== 'admin') {
+      return res.status(400).json({
+        message: 'An OTP has been sent to your email. Please use OTP login instead.',
+        requiresOTP: true,
+        email: user.email
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
+
     const token = generateToken(user._id, user.role);
     res.json({
       token,
@@ -57,6 +131,24 @@ exports.signin = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Get current user (for frontend to check auth status)
+exports.getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password');
+    res.json({
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isSellerApproved: user.isSellerApproved
       }
     });
   } catch (error) {

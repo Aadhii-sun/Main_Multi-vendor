@@ -95,15 +95,28 @@ const Products = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 6 }}>
+    <Container maxWidth="xl" sx={{ mt: { xs: 2, md: 4 }, mb: 6, px: { xs: 1.5, sm: 3 } }}>
       {/* Featured Slider Section */}
       {sliderProducts.length > 0 && (
-        <Box sx={{ mb: 6 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-            <Typography variant="h5" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', md: '1.75rem' } }}>
-              ✨ Featured Products
+        <Box sx={{ mb: { xs: 4, md: 6 } }}>
+          <Stack 
+            direction="row" 
+            justifyContent="space-between" 
+            alignItems="center" 
+            sx={{ mb: 2, gap: 1 }}
+          >
+            <Typography 
+              variant="h5" 
+              sx={{ 
+                fontWeight: 700, 
+                fontSize: { xs: '1.25rem', md: '1.75rem' },
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              ✨ Featured
             </Typography>
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={0.5}>
               <IconButton 
                 size="small" 
                 onClick={() => scrollSlider('left')}
@@ -112,7 +125,7 @@ const Products = () => {
                   '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
                 }}
               >
-                <ChevronLeftIcon />
+                <ChevronLeftIcon sx={{ fontSize: { xs: '1.2rem', md: '1.5rem' } }} />
               </IconButton>
               <IconButton 
                 size="small" 
@@ -122,7 +135,7 @@ const Products = () => {
                   '&:hover': { bgcolor: 'rgba(99, 102, 241, 0.2)' }
                 }}
               >
-                <ChevronRightIcon />
+                <ChevronRightIcon sx={{ fontSize: { xs: '1.2rem', md: '1.5rem' } }} />
               </IconButton>
             </Stack>
           </Stack>
@@ -144,9 +157,9 @@ const Products = () => {
                 key={p.id || p._id}
                 onClick={() => navigate(`/products/${p.id || p._id}`)}
                 sx={{
-                  minWidth: 280,
-                  width: 280,
-                  flex: '0 0 280px',
+                  minWidth: { xs: 220, sm: 240, md: 280 },
+                  width: { xs: 220, sm: 240, md: 280 },
+                  flex: { xs: '0 0 220px', sm: '0 0 240px', md: '0 0 280px' },
                   borderRadius: 3,
                   cursor: 'pointer',
                   overflow: 'hidden',
@@ -217,25 +230,49 @@ const Products = () => {
       )}
 
       {/* Divider */}
-      <Box sx={{ height: 1, bgcolor: 'divider', my: 4 }} />
+      <Box sx={{ height: 1, bgcolor: 'divider', my: { xs: 2, md: 4 } }} />
 
       {/* Main Section Title */}
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>All Products</Typography>
-        <Button variant="contained" onClick={() => navigate('/cart')}>🛒 Go to Cart</Button>
+      <Stack 
+        direction={{ xs: 'column', sm: 'row' }} 
+        justifyContent="space-between" 
+        alignItems={{ xs: 'flex-start', sm: 'center' }} 
+        sx={{ mb: 3, gap: 2 }}
+      >
+        <Typography variant="h4" sx={{ fontWeight: 700, fontSize: { xs: '1.5rem', md: '2rem' } }}>
+          📦 All Products
+        </Typography>
+        <Button 
+          variant="contained" 
+          onClick={() => navigate('/cart')}
+          sx={{ whiteSpace: 'nowrap' }}
+        >
+          🛒 Go to Cart
+        </Button>
       </Stack>
 
       {/* Filters and Sorting Bar */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} gap={2} sx={{ mb: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 2 }}>
+      <Stack 
+        direction={{ xs: 'column', sm: 'row' }} 
+        gap={{ xs: 1.5, sm: 2 }} 
+        sx={{ 
+          mb: 3, 
+          p: { xs: 1.5, sm: 2 }, 
+          bgcolor: 'rgba(99, 102, 241, 0.05)',
+          borderRadius: 2,
+          border: '1px solid rgba(99, 102, 241, 0.1)'
+        }}
+      >
         <TextField
           placeholder="Search products..."
           variant="outlined"
           size="small"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          sx={{ flex: 1 }}
+          sx={{ flex: 1, minWidth: { xs: '100%', sm: 200 } }}
+          fullWidth={{ xs: true, sm: false }}
         />
-        <FormControl size="small" sx={{ minWidth: 150 }}>
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }} fullWidth={{ xs: true, sm: false }}>
           <InputLabel>Sort By</InputLabel>
           <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} label="Sort By">
             <MenuItem value="default">Default</MenuItem>
@@ -246,15 +283,28 @@ const Products = () => {
         </FormControl>
       </Stack>
 
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3, flexWrap: 'wrap', gap: 2 }}>
-        <Typography variant="body2">{sorted.length} results</Typography>
+      <Stack 
+        direction={{ xs: 'column', sm: 'row' }} 
+        justifyContent="space-between" 
+        alignItems={{ xs: 'flex-start', sm: 'center' }} 
+        sx={{ mb: 3, gap: { xs: 1, sm: 2 } }}
+      >
+        <Typography variant="body2" sx={{ fontSize: { xs: '0.875rem', md: '1rem' } }}>
+          📊 {sorted.length} results found
+        </Typography>
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-          <Typography variant="body2">Sort by</Typography>
-          <Select size="small" value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}>
+          <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>Sort:</Typography>
+          <Select 
+            size="small" 
+            value={sort} 
+            onChange={(e) => { setSort(e.target.value); setPage(1); }}
+            sx={{ minWidth: { xs: '100%', sm: 150 } }}
+            fullWidth={{ xs: true, sm: false }}
+          >
             <MenuItem value="relevance">Relevance</MenuItem>
             <MenuItem value="price-asc">Price: Low to High</MenuItem>
             <MenuItem value="price-desc">Price: High to Low</MenuItem>
-            <MenuItem value="rating-desc">Rating</MenuItem>
+            <MenuItem value="rating-desc">Top Rated</MenuItem>
           </Select>
         </Stack>
       </Stack>

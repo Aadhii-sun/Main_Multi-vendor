@@ -13,52 +13,48 @@ git push origin main
 ### Step 2: Create Backend on Render
 
 1. Go to https://render.com (sign up if needed)
-2. Click **"New +"** → **"Web Service"**
-3. Select your GitHub repo: **Main_Multi-vendor**
-4. Configure:
+2. Click **"New +"** → Select **"Web Service"**
+3. Connect your GitHub repo: **Main_Multi-vendor**
+4. Fill in the form:
    - **Name:** `maniproject-backend`
-   - **Environment:** `Node`
-   - **Region:** `Oregon` (or nearest)
-   - **Plan:** `Free`
+   - **Language:** `Node` (should auto-detect)
+   - **Branch:** `main`
+   - **Region:** `Virginia (US East)` or closest to you
    - **Root Directory:** `backend`
    - **Build Command:** `npm install`
    - **Start Command:** `npm run start`
+   - **Instance Type:** `Free`
 
-5. Click **"Advanced"** and add these environment variables:
-   ```
-   NODE_ENV=production
-   PORT=5000
-   MONGO_URI=mongodb+srv://YOUR_MONGO_URI
-   JWT_SECRET=Adi@123456789_secret
-   EMAIL_USER=adithyananimon9@gmail.com
-   EMAIL_PASS=ronzvngcgxhbwdbf
-   STRIPE_SECRET_KEY=sk_test_51SJodUIBVKasxBKaw83EvqNfA26vsX4Ti0E3IHj4HxmyUvg9vqpqFPco0lunZx2C6Pex63cwnKLdzjf0vdUFuXrb00HkjHf79b
-   STRIPE_WEBHOOK_SECRET=whsec_xxxxx
-   CLIENT_URL=https://maniproject-frontend.onrender.com
-   ```
+5. Scroll down to **Environment Variables** section
+6. Click **"+ Add Environment Variable"** and add these:
+   - `NODE_ENV` = `production`
+   - `PORT` = `5000`
+   - `MONGO_URI` = `mongodb+srv://YOUR_MONGO_URI`
+   - `JWT_SECRET` = `Adi@123456789_secret`
+   - `EMAIL_USER` = `adithyananimon9@gmail.com`
+   - `EMAIL_PASS` = `ronzvngcgxhbwdbf`
+   - `STRIPE_SECRET_KEY` = `sk_test_51SJodUIBVKasxBKaw83EvqNfA26vsX4Ti0E3IHj4HxmyUvg9vqpqFPco0lunZx2C6Pex63cwnKLdzjf0vdUFuXrb00HkjHf79b`
+   - `STRIPE_WEBHOOK_SECRET` = `whsec_xxxxx`
+   - `CLIENT_URL` = `https://maniproject-frontend.onrender.com`
 
-6. Click **"Create Web Service"**
-7. **Wait 5-10 minutes** for deployment
-8. Copy your backend URL (e.g., `https://maniproject-backend.onrender.com`)
+7. Click **"Deploy Web Service"** button at the bottom
+8. **Wait 5-10 minutes** for deployment
+9. Copy your backend URL from the dashboard
 
 ### Step 3: Create Frontend on Render
 
-1. Click **"New +"** → **"Static Site"**
+1. Click **"New +"** → Select **"Static Site"** (from the menu)
 2. Select your GitHub repo: **Main_Multi-vendor**
 3. Configure:
    - **Name:** `maniproject-frontend`
-   - **Environment:** `Static`
    - **Region:** `Oregon`
    - **Plan:** `Free`
-   - **Root Directory:** `/`
    - **Build Command:** `cd frontend && npm install && npm run build`
    - **Publish Directory:** `frontend/dist`
 
-4. Click **"Advanced"** and add environment variables:
-   ```
-   VITE_API_URL=https://maniproject-backend.onrender.com/api
-   VITE_BASE_URL=https://maniproject-frontend.onrender.com
-   ```
+4. Click **"Advanced"** → **"Add Environment Variable"** and add:
+   - `VITE_API_URL` = `https://maniproject-backend.onrender.com/api`
+   - `VITE_BASE_URL` = `https://maniproject-frontend.onrender.com`
 
 5. Click **"Create Static Site"**
 6. **Wait 3-5 minutes** for deployment

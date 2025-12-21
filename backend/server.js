@@ -1,18 +1,20 @@
-const dotenv = require('dotenv');
-dotenv.config();
-
+// Load environment configuration first
+const config = require('./config/env');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorMiddleware');
 const Stripe = require("stripe");
 
+console.log('✅ Environment configuration loaded');
 console.log('Starting server...');
-console.log('Environment:', process.env.NODE_ENV);
-console.log('MongoDB URI exists:', !!process.env.MONGO_URI);
+console.log('Environment:', config.nodeEnv);
+console.log('MongoDB URI:', config.mongoUri ? 'Configured' : 'Missing');
+console.log('Email User:', config.email.user ? 'Configured' : 'Missing');
 
 const app = express();
 
@@ -28,10 +30,28 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
+const allowedOrigins = [
+  config.clientUrl,
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000'
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    }
+  },
   credentials: true
 }));
+
+// Stripe webhook endpoint (must be before JSON middleware)
+// This route needs raw body, not parsed JSON
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), require('./routes/paymentRoutes').webhookHandler);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -45,13 +65,32 @@ if (process.env.NODE_ENV === 'development') {
 // Initialize Stripe
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV,
+    version: '1.0.0'
+  });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/otp', require('./routes/otpRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/sellers', require('./routes/sellerRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/cart', require('./routes/cartRoutes'));
+app.use('/api/wishlist', require('./routes/wishlistRoutes'));
+app.use('/api/coupons', require('./routes/couponRoutes'));
+app.use('/api/chatbot', require('./routes/chatbotRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/payments', require('./routes/paymentRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/uploads', require('./routes/uploadRoutes'));
+app.use('/api/test', require('./routes/connectionTestRoutes'));
 
 // Error handling middleware (should be last)
 app.use(errorHandler);
