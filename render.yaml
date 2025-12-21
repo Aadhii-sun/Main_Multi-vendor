@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: maniproject-backend
+    env: node
+    region: oregon
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGO_URI
+        scope: project
+      - key: JWT_SECRET
+        scope: project
+      - key: EMAIL_USER
+        scope: project
+      - key: EMAIL_PASS
+        scope: project
+      - key: STRIPE_SECRET_KEY
+        scope: project
+      - key: STRIPE_WEBHOOK_SECRET
+        scope: project
+      - key: CLIENT_URL
+        value: https://maniproject-frontend.onrender.com
+
+  - type: web
+    name: maniproject-frontend
+    env: static
+    region: oregon
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    routes:
+      - path: /
+        destination: /index.html
