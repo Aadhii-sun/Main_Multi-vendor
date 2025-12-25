@@ -4,7 +4,6 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Box from '@mui/material/Box';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import theme from './theme.js';
 
 // Import components
@@ -281,6 +280,26 @@ function AppContent() {
   );
 }
 
+// Conditionally load ReactQueryDevtools only in development
+const DevTools = () => {
+  if (!import.meta.env.DEV) return null;
+  
+  // Use dynamic import to avoid bundling in production
+  const [DevToolsComponent, setDevToolsComponent] = React.useState(null);
+  
+  React.useEffect(() => {
+    if (import.meta.env.DEV) {
+      import('@tanstack/react-query-devtools').then((module) => {
+        setDevToolsComponent(() => module.ReactQueryDevtools);
+      });
+    }
+  }, []);
+  
+  if (!DevToolsComponent) return null;
+  
+  return <DevToolsComponent initialIsOpen={false} position="bottom-right" />;
+};
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
@@ -297,9 +316,7 @@ function App() {
             </AuthProvider>
           </ErrorBoundary>
         </Router>
-        {import.meta?.env?.DEV ? (
-          <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
-        ) : null}
+        <DevTools />
       </QueryClientProvider>
     </ThemeProvider>
   );
