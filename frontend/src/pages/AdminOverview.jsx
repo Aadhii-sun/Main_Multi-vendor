@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Box, Container, Grid, Paper, Stack, Typography, Button, Chip } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Container, Grid, Paper, Stack, Typography, Button, Chip, CircularProgress, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import {
   ShoppingCart,
@@ -8,46 +8,72 @@ import {
   AttachMoney,
   TrendingUp,
 } from '@mui/icons-material';
-import { getLocalOrders } from '../utils/localOrders';
+import { getDashboardStats, getAllOrders, getAllProducts } from '../services/admin';
 
 const AdminOverview = () => {
   const navigate = useNavigate();
-  const orders = getLocalOrders();
+  const [stats, setStats] = useState(null);
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [pendingProducts, setPendingProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const stats = useMemo(() => {
-    const sellerProducts = (() => {
-      try { return JSON.parse(localStorage.getItem('seller_products')) || []; } catch { return []; }
-    })();
-    const adminProducts = (() => {
-      try { return JSON.parse(localStorage.getItem('admin_products')) || []; } catch { return []; }
-    })();
-    const allProducts = [...sellerProducts, ...adminProducts];
-    const approvedProducts = allProducts.filter(p => p.approved || p.status === 'approved');
-    const pendingProducts = allProducts.filter(p => !p.approved && (p.status === 'pending' || !p.status));
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
-    const totalRevenue = orders.reduce((sum, o) => {
-      const total = typeof o.total === 'string' ? parseFloat(o.total.replace('$', '')) : o.totalPrice || 0;
-      return sum + total;
-    }, 0);
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    const deliveredOrders = orders.filter(o => (o.status || '').toLowerCase() === 'delivered').length;
-    const processingOrders = orders.filter(o => (o.status || '').toLowerCase() === 'processing').length;
+      // Fetch dashboard stats
+      const dashboardData = await getDashboardStats();
+      setStats(dashboardData);
 
-    return {
-      totalProducts: allProducts.length,
-      approvedProducts: approvedProducts.length,
-      pendingProducts: pendingProducts.length,
-      totalOrders: orders.length,
-      totalRevenue,
-      deliveredOrders,
-      processingOrders,
-    };
-  }, [orders]);
+      // Fetch recent orders
+      const ordersResponse = await getAllOrders();
+      const ordersList = Array.isArray(ordersResponse) ? ordersResponse : (ordersResponse.orders || []);
+      setRecentOrders(ordersList.slice(0, 5));
+
+      // Fetch pending products
+      const productsResponse = await getAllProducts({ limit: 1000, allStatus: true });
+      const productsList = productsResponse.products || productsResponse || [];
+      const pending = productsList.filter(p => 
+        p.status === 'pending' || !p.status || p.status === 'inactive'
+      );
+      setPendingProducts(pending.slice(0, 5));
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError(err.response?.data?.message || 'Failed to fetch dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 6, mb: 6, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress />
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 6, mb: 6 }}>
+        <Alert severity="error">{error}</Alert>
+      </Container>
+    );
+  }
+
+  const overview = stats?.overview || {};
+  const ordersData = stats?.orders || {};
 
   const KPI_CARDS = [
     {
       title: 'Total Products',
-      value: stats.totalProducts,
+      value: overview.totalProducts || 0,
       icon: <Inventory2 sx={{ fontSize: 40 }} />,
       color: '#2196f3',
       action: () => navigate('/admin/products'),
@@ -55,7 +81,7 @@ const AdminOverview = () => {
     },
     {
       title: 'Total Orders',
-      value: stats.totalOrders,
+      value: overview.totalOrders || 0,
       icon: <ShoppingCart sx={{ fontSize: 40 }} />,
       color: '#4caf50',
       action: () => navigate('/admin/orders'),
@@ -63,24 +89,19 @@ const AdminOverview = () => {
     },
     {
       title: 'Total Revenue',
-      value: `$${stats.totalRevenue.toFixed(2)}`,
+      value: `$${(overview.totalRevenue || 0).toFixed(2)}`,
       icon: <AttachMoney sx={{ fontSize: 40 }} />,
       color: '#ff9800',
     },
     {
       title: 'Pending Approvals',
-      value: stats.pendingProducts,
+      value: pendingProducts.length,
       icon: <TrendingUp sx={{ fontSize: 40 }} />,
       color: '#f44336',
       action: () => navigate('/admin/products'),
       actionLabel: 'Review',
     },
   ];
-
-  const recentOrders = orders.slice(0, 5);
-  const sellerProducts = (() => {
-    try { return JSON.parse(localStorage.getItem('seller_products')) || []; } catch { return []; }
-  })().slice(0, 5);
 
   return (
     <Container maxWidth="lg" sx={{ mt: 6, mb: 6 }}>
@@ -155,7 +176,7 @@ const AdminOverview = () => {
               ) : (
                 recentOrders.map((order) => (
                   <Box
-                    key={order.id}
+                    key={order._id}
                     sx={{
                       p: 2,
                       borderRadius: 2,
@@ -168,14 +189,16 @@ const AdminOverview = () => {
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Box>
                         <Typography variant="subtitle2">
-                          Order #{order.id?.slice(-8) || order.id}
+                          Order #{order._id?.slice(-8) || order._id}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {order.date || new Date().toLocaleDateString()}
+                          {order.createdAt 
+                            ? new Date(order.createdAt).toLocaleDateString() 
+                            : new Date().toLocaleDateString()}
                         </Typography>
                       </Box>
                       <Chip
-                        label={order.status || 'Processing'}
+                        label={order.status || 'pending'}
                         size="small"
                         color={
                           (order.status || '').toLowerCase() === 'delivered' ? 'success' :
@@ -184,7 +207,7 @@ const AdminOverview = () => {
                       />
                     </Box>
                     <Typography variant="body2" sx={{ mt: 1 }}>
-                      {typeof order.total === 'string' ? order.total : `$${(order.totalPrice || 0).toFixed(2)}`}
+                      ${(order.totalPrice || 0).toFixed(2)}
                     </Typography>
                   </Box>
                 ))
@@ -202,31 +225,33 @@ const AdminOverview = () => {
               </Button>
             </Box>
             <Stack spacing={2}>
-              {sellerProducts.filter(p => !p.approved && (p.status === 'pending' || !p.status)).length === 0 ? (
+              {pendingProducts.length === 0 ? (
                 <Typography color="text.secondary">No pending approvals</Typography>
               ) : (
-                sellerProducts
-                  .filter(p => !p.approved && (p.status === 'pending' || !p.status))
-                  .slice(0, 5)
-                  .map((product) => (
-                    <Box
-                      key={product.id}
-                      sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        bgcolor: 'rgba(0,0,0,0.02)',
-                        cursor: 'pointer',
-                        '&:hover': { bgcolor: 'rgba(0,0,0,0.05)' },
-                      }}
-                      onClick={() => navigate('/admin/products')}
-                    >
-                      <Typography variant="subtitle2">{product.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        ${Number(product.price || 0).toFixed(2)} · {product.category || 'Uncategorized'}
+                pendingProducts.map((product) => (
+                  <Box
+                    key={product._id}
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      bgcolor: 'rgba(0,0,0,0.02)',
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: 'rgba(0,0,0,0.05)' },
+                    }}
+                    onClick={() => navigate('/admin/products')}
+                  >
+                    <Typography variant="subtitle2">{product.name}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      ${Number(product.price || 0).toFixed(2)} · {product.category || 'Uncategorized'}
+                    </Typography>
+                    {product.seller && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Seller: {product.seller.name || product.seller.email || 'N/A'}
                       </Typography>
-                      <Chip label="Pending" size="small" color="warning" sx={{ mt: 1 }} />
-                    </Box>
-                  ))
+                    )}
+                    <Chip label="Pending" size="small" color="warning" sx={{ mt: 1 }} />
+                  </Box>
+                ))
               )}
             </Stack>
           </Paper>

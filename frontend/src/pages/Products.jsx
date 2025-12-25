@@ -1,18 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Box, Button, Card, CardActions, CardContent, CardMedia, Chip,
-  Container, Grid, Rating, Stack, Typography, Select, MenuItem, Alert, Paper, IconButton,
+  Box, Button, Container, Stack, Typography, Select, MenuItem, Paper, IconButton,
   TextField, FormControl, InputLabel
 } from '@mui/material';
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon } from '@mui/icons-material';
-import { useCart } from '../contexts/CartContext.jsx';
-import { useWishlist } from '../contexts/WishlistContext.jsx';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import PriceTag from '../components/Common/PriceTag.jsx';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import StorefrontIcon from '@mui/icons-material/Storefront';
+import ProductCard from '../components/Product/ProductCard.jsx';
 
 const Products = () => {
   const { addItem } = useCart();
@@ -24,7 +19,8 @@ const Products = () => {
   const { items: wish, toggle } = useWishlist();
   const sliderRef = React.useRef(null);
   const [sliderIndex, setSliderIndex] = React.useState(0);
-  const [searchTerm, setSearchTerm] = React.useState('');
+  const [searchTerm, setSearchTerm] = React.useState(q || '');
+  const [selectedCategory, setSelectedCategory] = React.useState(category || 'All');
   const [sortBy, setSortBy] = React.useState('default');
 
   const sellerProducts = (() => {
@@ -45,27 +41,68 @@ const Products = () => {
   })();
   // Only show products created by sellers/admins; exclude demo seeding
   const catalog = [...sellerProducts, ...adminProducts];
-  const filtered = catalog.filter((p) => {
-    const matchesQ =
-      !q || (p.name && p.name.toLowerCase().includes(q)) || (p.category && p.category.toLowerCase().includes(q));
-    const matchesCategory = !category || (p.category && p.category.toLowerCase().includes(category));
-    const matchesVendor = !vendor || 
-      (p.sellerName && p.sellerName.toLowerCase().includes(vendor)) ||
-      (p.seller && p.seller.toLowerCase().includes(vendor)) ||
-      (p.shopName && p.shopName.toLowerCase().includes(vendor));
-    return matchesQ && matchesCategory && matchesVendor;
-  });
+
+  // Get unique categories, plus "All"
+  const allCategories = useMemo(() => {
+    const categories = new Set(catalog.map(p => p.category).filter(Boolean));
+    return ['All', ...Array.from(categories).sort()];
+  }, [catalog]);
+
+  // Filter products based on search and category
+  const filtered = useMemo(() => {
+    return catalog.filter((p) => {
+      // Category filter
+      const matchCategory = selectedCategory === 'All' || 
+        (p.category && p.category.toLowerCase() === selectedCategory.toLowerCase());
+      
+      // Search filter
+      const matchSearch = !searchTerm || 
+        (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.category && p.category.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.description && p.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      // Vendor filter (from URL params)
+      const matchesVendor = !vendor || 
+        (p.sellerName && p.sellerName.toLowerCase().includes(vendor)) ||
+        (p.seller && p.seller.toLowerCase().includes(vendor)) ||
+        (p.shopName && p.shopName.toLowerCase().includes(vendor));
+      
+      return matchCategory && matchSearch && matchesVendor;
+    });
+  }, [catalog, selectedCategory, searchTerm, vendor]);
 
   const [sort, setSort] = React.useState('relevance');
   const [page, setPage] = React.useState(1);
   const pageSize = 12;
 
-  const sorted = [...filtered].sort((a, b) => {
-    if (sort === 'price-asc') return a.price - b.price;
-    if (sort === 'price-desc') return b.price - a.price;
-    if (sort === 'rating-desc') return (b.rating || 0) - (a.rating || 0);
-    return 0;
-  });
+  // Apply sorting to filtered products
+  const sorted = useMemo(() => {
+    const sortedArray = [...filtered];
+    
+    // Apply sortBy filter first (from the filter bar)
+    if (sortBy === 'price-low') {
+      sortedArray.sort((a, b) => (a.price || 0) - (b.price || 0));
+    } else if (sortBy === 'price-high') {
+      sortedArray.sort((a, b) => (b.price || 0) - (a.price || 0));
+    } else if (sortBy === 'newest') {
+      sortedArray.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+        return dateB - dateA;
+      });
+    }
+    
+    // Then apply the secondary sort (from the sort dropdown)
+    if (sort === 'price-asc') {
+      sortedArray.sort((a, b) => (a.price || 0) - (b.price || 0));
+    } else if (sort === 'price-desc') {
+      sortedArray.sort((a, b) => (b.price || 0) - (a.price || 0));
+    } else if (sort === 'rating-desc') {
+      sortedArray.sort((a, b) => (b.rating || b.averageRating || 0) - (a.rating || a.averageRating || 0));
+    }
+    
+    return sortedArray;
+  }, [filtered, sortBy, sort]);
 
   // Group products by category
   const groupedByCategory = React.useMemo(() => {
@@ -153,77 +190,19 @@ const Products = () => {
             }}
           >
             {sliderProducts.map((p) => (
-              <Card
+              <Box
                 key={p.id || p._id}
-                onClick={() => navigate(`/products/${p.id || p._id}`)}
                 sx={{
-                  minWidth: { xs: 220, sm: 240, md: 280 },
-                  width: { xs: 220, sm: 240, md: 280 },
-                  flex: { xs: '0 0 220px', sm: '0 0 240px', md: '0 0 280px' },
-                  borderRadius: 3,
-                  cursor: 'pointer',
-                  overflow: 'hidden',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                  transition: 'all 0.3s ease',
-                  '&:hover': {
-                    transform: 'translateY(-8px)',
-                    boxShadow: '0 12px 24px rgba(0,0,0,0.15)',
-                  }
+                  minWidth: 220,
+                  width: 220,
+                  flex: '0 0 220px',
                 }}
               >
-                <Box sx={{ position: 'relative', height: 200, overflow: 'hidden' }}>
-                  <CardMedia
-                    component="img"
-                    image={p.image || p.images?.[0] || 'https://via.placeholder.com/300'}
-                    alt={p.name}
-                    sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      top: 0,
-                      right: 0,
-                      bgcolor: 'rgba(99, 102, 241, 0.9)',
-                      color: 'white',
-                      px: 1.5,
-                      py: 0.75,
-                      borderBottomLeftRadius: 1,
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {p.category}
-                  </Box>
-                </Box>
-                <CardContent sx={{ pb: 1 }}>
-                  <Typography
-                    variant="subtitle2"
-                    sx={{
-                      fontWeight: 600,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      mb: 1,
-                    }}
-                  >
-                    {p.name}
-                  </Typography>
-                  <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
-                    <Rating
-                      name="read-only"
-                      value={p.rating || p.averageRating || 0}
-                      precision={0.1}
-                      readOnly
-                      size="small"
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      ({p.rating || 0})
-                    </Typography>
-                  </Stack>
-                  <PriceTag price={p.price} discount={p.discountPrice || p.originalPrice} />
-                </CardContent>
-              </Card>
+                <ProductCard
+                  product={p}
+                  onNavigate={(path) => navigate(path)}
+                />
+              </Box>
             ))}
           </Box>
         </Box>
@@ -263,6 +242,7 @@ const Products = () => {
           border: '1px solid rgba(99, 102, 241, 0.1)'
         }}
       >
+        {/* Search Box */}
         <TextField
           placeholder="Search products..."
           variant="outlined"
@@ -272,6 +252,24 @@ const Products = () => {
           sx={{ flex: 1, minWidth: { xs: '100%', sm: 200 } }}
           fullWidth={{ xs: true, sm: false }}
         />
+        
+        {/* Category Dropdown */}
+        <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 180 } }} fullWidth={{ xs: true, sm: false }}>
+          <InputLabel>Category</InputLabel>
+          <Select 
+            value={selectedCategory} 
+            onChange={(e) => setSelectedCategory(e.target.value)} 
+            label="Category"
+          >
+            {allCategories.map((cat) => (
+              <MenuItem key={cat} value={cat}>
+                {cat}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {/* Sort By */}
         <FormControl size="small" sx={{ minWidth: { xs: '100%', sm: 150 } }} fullWidth={{ xs: true, sm: false }}>
           <InputLabel>Sort By</InputLabel>
           <Select value={sortBy} onChange={(e) => setSortBy(e.target.value)} label="Sort By">
@@ -392,228 +390,22 @@ const Products = () => {
               </Stack>
 
               {/* Products Grid for Category */}
-              <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 2,
+                  flexWrap: 'wrap',
+                  justifyContent: { xs: 'center', sm: 'flex-start' }
+                }}
+              >
                 {groupedByCategory[categoryName].slice(0, 8).map((p) => (
-                  <Grid item xs={12} sm={6} md={4} lg={3} key={p.id || p._id} sx={{ display: 'flex' }}>
-                    <Card sx={{ 
-                      borderRadius: 3, 
-                      width: '100%',
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      position: 'relative',
-                      overflow: 'hidden',
-                      boxSizing: 'border-box',
-                      m: 0,
-                      background: '#ffffff',
-                      border: '1px solid rgba(0, 0, 0, 0.08)',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      '&:hover': {
-                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                        transform: 'translateY(-4px)',
-                        border: '1px solid rgba(99, 102, 241, 0.2)'
-                      }
-                    }}>
-                      <Box sx={{ 
-                        height: '240px', 
-                        width: '100%', 
-                        overflow: 'hidden', 
-                        position: 'relative',
-                        flexShrink: 0,
-                        flexGrow: 0,
-                        background: 'linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%)'
-                      }}>
-                        <CardMedia
-                          component="img"
-                          image={p.image || p.images?.[0] || 'https://via.placeholder.com/300'}
-                          alt={p.name}
-                          sx={{ 
-                            width: '100%', 
-                            height: '100%', 
-                            objectFit: 'cover',
-                            transition: 'transform 0.3s ease',
-                            '&:hover': { transform: 'scale(1.05)' }
-                          }}
-                        />
-                        {/* Wishlist Button */}
-                        <Box sx={{ position: 'absolute', top: 12, right: 12, zIndex: 2 }}>
-                          <Button 
-                            size="small" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggle(p);
-                            }} 
-                            sx={{ 
-                              minWidth: 0, 
-                              p: 1,
-                              bgcolor: 'rgba(255, 255, 255, 0.95)',
-                              backdropFilter: 'blur(8px)',
-                              borderRadius: '50%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transition: 'all 0.2s ease',
-                              '&:hover': {
-                                bgcolor: 'rgba(255, 255, 255, 1)',
-                                transform: 'scale(1.1)'
-                              }
-                            }}>
-                            {wish.some((w) => (w.id || w._id) === (p.id || p._id)) ? <FavoriteIcon color="error" sx={{ fontSize: '1.3rem' }} /> : <FavoriteBorderIcon sx={{ fontSize: '1.3rem' }} />}
-                          </Button>
-                        </Box>
-                        {/* Stock Badge */}
-                        <Box sx={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}>
-                          <Chip 
-                            label={p.stock > 0 ? `${p.stock} In Stock` : 'Out of Stock'}
-                            size="small"
-                            sx={{
-                              bgcolor: p.stock > 0 ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)',
-                              color: 'white',
-                              fontWeight: 600,
-                              fontSize: '0.75rem',
-                              backdropFilter: 'blur(8px)'
-                            }}
-                          />
-                        </Box>
-                      </Box>
-
-                      {/* Content */}
-                      <CardContent sx={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        p: 2,
-                        flexShrink: 0,
-                        boxSizing: 'border-box',
-                        flex: 1
-                      }}>
-                        <Stack spacing={1.2} sx={{ width: '100%', height: '100%' }}>
-                          {/* Product Name */}
-                          <Typography 
-                            variant="subtitle1" 
-                            fontWeight={700} 
-                            title={p.name} 
-                            sx={{ 
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              lineHeight: 1.3,
-                              color: '#1a1a1a',
-                              flexShrink: 0
-                            }}
-                          >
-                            {p.name}
-                          </Typography>
-                          {/* Category Chip */}
-                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                            <Chip 
-                              label={p.category} 
-                              size="small" 
-                              sx={{ 
-                                height: '22px',
-                                fontSize: '0.7rem',
-                                bgcolor: 'rgba(99, 102, 241, 0.1)',
-                                color: '#6366f1',
-                                fontWeight: 600,
-                                flexShrink: 0
-                              }} 
-                            />
-                          </Box>
-                          {/* Rating */}
-                          <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
-                            <Rating name="read-only" value={p.rating || p.averageRating || 0} precision={0.1} readOnly size="small" />
-                            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>({p.rating || p.averageRating || 0})</Typography>
-                          </Stack>
-                          {/* Seller Info */}
-                          {p.sellerName && (
-                            <Typography 
-                              variant="caption" 
-                              color="primary" 
-                              sx={{ 
-                                cursor: 'pointer',
-                                fontSize: '0.75rem',
-                                color: '#6366f1',
-                                fontWeight: 500,
-                                transition: 'color 0.2s ease',
-                                '&:hover': { color: '#4f46e5' },
-                                flexShrink: 0,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/vendor/${p.seller || p.sellerId || p.sellerName}`);
-                              }}
-                              title={`By ${p.sellerName}`}
-                            >
-                              👤 {p.sellerName}
-                            </Typography>
-                          )}
-                          {/* Price Section */}
-                          <Box sx={{ flexShrink: 0, mt: 'auto', pt: 0.5 }}>
-                            <PriceTag price={p.price} discount={p.discountPrice || p.originalPrice} />
-                          </Box>
-                        </Stack>
-                      </CardContent>
-
-                      {/* Actions */}
-                      <CardActions sx={{ 
-                        p: 2, 
-                        pt: 0,
-                        gap: 1,
-                        flexDirection: 'column',
-                        borderTop: '1px solid rgba(0, 0, 0, 0.05)',
-                        flexShrink: 0,
-                        boxSizing: 'border-box',
-                        m: 0
-                      }}>
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          size="small"
-                          onClick={() => addItem({ id: p.id || p._id, name: p.name, price: p.discountPrice || p.originalPrice || p.price, image: p.image || p.images?.[0] })}
-                          disabled={p.stock <= 0}
-                          sx={{
-                            bgcolor: p.stock > 0 ? '#6366f1' : '#cbd5e1',
-                            color: 'white',
-                            fontWeight: 600,
-                            textTransform: 'none',
-                            transition: 'all 0.2s ease',
-                            '&:hover': {
-                              bgcolor: p.stock > 0 ? '#4f46e5' : '#cbd5e1',
-                              transform: p.stock > 0 ? 'translateY(-2px)' : 'none'
-                            }
-                          }}
-                        >
-                          🛒 {p.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
-                        </Button>
-                        <Button
-                          fullWidth
-                          variant="outlined"
-                          size="small"
-                          onClick={() => navigate(`/product/${p.id || p._id}`)}
-                          sx={{
-                            color: '#6366f1',
-                            borderColor: '#6366f1',
-                            textTransform: 'none',
-                            fontWeight: 600,
-                            transition: 'all 0.2s ease',
-                            '&:hover': {
-                              bgcolor: 'rgba(99, 102, 241, 0.05)',
-                              borderColor: '#4f46e5',
-                              color: '#4f46e5'
-                            }
-                          }}
-                        >
-                          View Details
-                        </Button>
-                      </CardActions>
-                    </Card>
-                  </Grid>
+                  <ProductCard
+                    key={p.id || p._id}
+                    product={p}
+                    onNavigate={(path) => navigate(path)}
+                  />
                 ))}
-              </Grid>
+              </Box>
             </Box>
           ))}
         </Box>

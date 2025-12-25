@@ -50,8 +50,10 @@ const Checkout = () => {
     isLoading,
     isError,
     error,
+    reset: resetPaymentIntent,
   } = useMutation({
     mutationFn: createCheckoutIntent,
+    retry: false, // Don't retry automatically to prevent multiple calls
   });
 
   const {
@@ -67,8 +69,23 @@ const Checkout = () => {
     if (!finalOrderId || !publishableKey) {
       return;
     }
-    createIntent({ orderId: finalOrderId }).catch(() => {});
-  }, [orderId, createdOrderId, createIntent, publishableKey]);
+    
+    // Only create intent if we don't already have one
+    if (data?.clientSecret) {
+      return;
+    }
+    
+    // Prevent multiple simultaneous calls
+    if (isLoading) {
+      return;
+    }
+    
+    createIntent({ orderId: finalOrderId }).catch((err) => {
+      console.error('Failed to create payment intent:', err);
+      // Error is already handled by the mutation's isError state
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId, createdOrderId, publishableKey]);
 
   // Handle coupon validation
   const handleApplyCoupon = async () => {
@@ -139,9 +156,12 @@ const Checkout = () => {
         }
       }
       if (orderData?.order?._id) {
-        setCreatedOrderId(orderData.order._id);
-        // Create payment intent for the new order
-        await createIntent({ orderId: orderData.order._id });
+        const newOrderId = orderData.order._id;
+        setCreatedOrderId(newOrderId);
+        // Update URL with orderId for better state management
+        navigate(`/checkout?orderId=${newOrderId}`, { replace: true });
+        // Create payment intent for the new order (will be triggered by useEffect)
+        // Don't await here - let useEffect handle it to avoid blocking
       } else {
         throw new Error('Order creation failed - no order ID returned');
       }
@@ -283,7 +303,14 @@ const Checkout = () => {
 
         {isError && (
           <Alert severity="error" sx={{ mb: 3 }}>
-            ❌ {error?.response?.data?.message || error?.message || 'Unable to initialize payment.'}
+            ❌ Payment initiation failed: {error?.response?.data?.message || error?.message || 'Unable to initialize payment. Please try again or use the standard checkout below.'}
+            {error?.response?.data?.issues && (
+              <Box component="ul" sx={{ mt: 1, pl: 2 }}>
+                {error.response.data.issues.map((issue, idx) => (
+                  <li key={idx} style={{ fontSize: '0.875rem' }}>{issue}</li>
+                ))}
+              </Box>
+            )}
           </Alert>
         )}
 
@@ -313,8 +340,26 @@ const Checkout = () => {
           <>
             {/* Fallback non-Stripe checkout if Stripe init failed or no orderId */}
             {publishableKey && finalOrderId && isError && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Payment initiation failed or no order selected. You can continue with standard checkout.
+              <Alert 
+                severity="info" 
+                sx={{ mb: 2 }}
+                action={
+                  <Button 
+                    size="small" 
+                    color="inherit" 
+                    onClick={() => {
+                      if (finalOrderId) {
+                        resetPaymentIntent();
+                        createIntent({ orderId: finalOrderId });
+                      }
+                    }}
+                    disabled={isLoading}
+                  >
+                    Retry
+                  </Button>
+                }
+              >
+                Payment initiation failed or no order selected. You can continue with standard checkout or retry payment.
               </Alert>
             )}
             {items.length === 0 ? (

@@ -1,4 +1,17 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+// Lazy initialization of Stripe to ensure env vars are loaded
+let stripeInstance = null;
+const getStripe = () => {
+  if (!stripeInstance) {
+    if (process.env.STRIPE_SECRET_KEY) {
+      stripeInstance = require('stripe')(process.env.STRIPE_SECRET_KEY);
+      console.log('✅ Stripe initialized with secret key');
+    } else {
+      console.error('❌ STRIPE_SECRET_KEY not found in environment variables');
+    }
+  }
+  return stripeInstance;
+};
+
 const Payment = require('../models/Payment');
 const Order = require('../models/Order');
 const User = require('../models/User');
@@ -12,9 +25,11 @@ const validatePaymentConfig = () => {
     issues.push('STRIPE_SECRET_KEY environment variable not set');
   }
 
-  if (!process.env.STRIPE_WEBHOOK_SECRET) {
-    issues.push('STRIPE_WEBHOOK_SECRET environment variable not set');
-  }
+  // STRIPE_WEBHOOK_SECRET is optional for basic payment intents
+  // Only required for webhook handling
+  // if (!process.env.STRIPE_WEBHOOK_SECRET) {
+  //   issues.push('STRIPE_WEBHOOK_SECRET environment variable not set');
+  // }
 
   return issues;
 };
@@ -50,9 +65,23 @@ exports.createPaymentIntent = async (req, res) => {
       return res.status(400).json({ message: 'Order cannot be paid' });
     }
 
+    const stripe = getStripe();
+    if (!stripe) {
+      return res.status(500).json({
+        message: 'Payment system not properly configured',
+        issues: ['Stripe is not initialized. Please set STRIPE_SECRET_KEY in environment variables.']
+      });
+    }
+
     console.log(`Creating payment intent for order ${orderId}, amount: ${order.totalPrice}`);
 
     const amount = Math.round(order.totalPrice * 100); // Convert to cents
+
+    if (amount < 50) { // Stripe minimum is $0.50
+      return res.status(400).json({
+        message: 'Order amount is too small. Minimum payment is $0.50.'
+      });
+    }
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
@@ -92,8 +121,30 @@ exports.createPaymentIntent = async (req, res) => {
       amount: order.totalPrice
     });
   } catch (error) {
-    console.error('Stripe payment intent error:', error);
-    res.status(500).json({ message: 'Payment initiation failed', error: error.message });
+    console.error('Stripe payment intent error (createPaymentIntent):', error);
+    console.error('Error details:', {
+      message: error.message,
+      type: error.type,
+      code: error.code,
+      statusCode: error.statusCode
+    });
+    
+    // Provide more helpful error messages
+    let errorMessage = 'Payment initiation failed';
+    if (error.type === 'StripeInvalidRequestError') {
+      errorMessage = `Invalid payment request: ${error.message}`;
+    } else if (error.type === 'StripeAPIError') {
+      errorMessage = `Stripe API error: ${error.message}`;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.status(500).json({ 
+      message: errorMessage, 
+      error: error.message,
+      type: error.type,
+      code: error.code
+    });
   }
 };
 
@@ -112,20 +163,26 @@ exports.createPaymentIntentForCheckout = async (req, res) => {
   try {
     const { orderId } = req.body;
 
+    if (!orderId) {
+      console.error('❌ Missing orderId in request body');
+      return res.status(400).json({ message: 'Order ID is required' });
+    }
+
+    console.log(`🔍 Looking up order: ${orderId}`);
+
     // Find the order
     const order = await Order.findById(orderId).populate('orderItems.product');
     if (!order) {
+      console.error(`❌ Order not found: ${orderId}`);
       return res.status(404).json({ message: 'Order not found' });
     }
 
+    console.log(`✅ Order found: ${order._id}, Total: $${order.totalPrice}, Status: ${order.status}, User: ${order.user}, Request User: ${req.user._id}`);
+
     // Verify order belongs to user
     if (order.user.toString() !== req.user._id.toString()) {
+      console.error(`❌ Authorization failed: Order user (${order.user}) != Request user (${req.user._id})`);
       return res.status(403).json({ message: 'Not authorized to pay for this order' });
-    }
-
-    // Check if order is already paid or cancelled
-    if (order.status === 'delivered' || order.status === 'cancelled') {
-      return res.status(400).json({ message: 'Order cannot be paid' });
     }
 
     // Check if payment already exists
@@ -141,8 +198,26 @@ exports.createPaymentIntentForCheckout = async (req, res) => {
       });
     }
 
-    const amount = Math.round(order.totalPrice * 100); // Convert to cents
+    const stripe = getStripe();
+    if (!stripe) {
+      console.error('❌ Stripe not initialized - STRIPE_SECRET_KEY missing');
+      return res.status(500).json({
+        message: 'Payment system not properly configured',
+        issues: ['Stripe is not initialized. Please set STRIPE_SECRET_KEY in environment variables.']
+      });
+    }
 
+    const amount = Math.round(order.totalPrice * 100); // Convert to cents
+    console.log(`💰 Creating payment intent - Amount: $${order.totalPrice} (${amount} cents)`);
+
+    if (amount < 50) { // Stripe minimum is $0.50
+      console.error(`❌ Amount too small: ${amount} cents (minimum: 50 cents)`);
+      return res.status(400).json({
+        message: 'Order amount is too small. Minimum payment is $0.50.'
+      });
+    }
+
+    console.log('🔑 Creating Stripe payment intent...');
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency: 'usd',
@@ -173,6 +248,8 @@ exports.createPaymentIntentForCheckout = async (req, res) => {
     order.payment = payment._id;
     await order.save();
 
+    console.log(`✅ Payment intent created successfully: ${paymentIntent.id}`);
+
     res.status(200).json({
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
@@ -180,8 +257,31 @@ exports.createPaymentIntentForCheckout = async (req, res) => {
       amount: order.totalPrice
     });
   } catch (error) {
-    console.error('Stripe payment intent error:', error);
-    res.status(500).json({ message: 'Payment initiation failed', error: error.message });
+    console.error('Stripe payment intent error (createPaymentIntentForCheckout):', error);
+    console.error('Error details:', {
+      message: error.message,
+      type: error.type,
+      code: error.code,
+      statusCode: error.statusCode,
+      stack: error.stack?.substring(0, 500) // First 500 chars of stack
+    });
+    
+    // Provide more helpful error messages
+    let errorMessage = 'Payment initiation failed';
+    if (error.type === 'StripeInvalidRequestError') {
+      errorMessage = `Invalid payment request: ${error.message}`;
+    } else if (error.type === 'StripeAPIError') {
+      errorMessage = `Stripe API error: ${error.message}`;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.status(500).json({ 
+      message: errorMessage, 
+      error: error.message,
+      type: error.type,
+      code: error.code
+    });
   }
 };
 
@@ -219,6 +319,10 @@ exports.confirmPayment = async (req, res) => {
     });
 
     // Retrieve payment intent from Stripe
+    const stripe = getStripe();
+    if (!stripe) {
+      return res.status(500).json({ message: 'Payment system not properly configured' });
+    }
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
     console.log('Stripe payment intent status:', paymentIntent.status);
 
@@ -306,6 +410,10 @@ exports.handleWebhook = async (req, res) => {
       return res.status(400).json({ message: 'No signature found' });
     }
 
+    const stripe = getStripe();
+    if (!stripe) {
+      return res.status(500).json({ message: 'Stripe not initialized' });
+    }
     event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
     console.log('Webhook event verified:', event.type, event.id);
   } catch (err) {
@@ -452,6 +560,10 @@ exports.refundPayment = async (req, res) => {
     }
 
     // Create refund in Stripe
+    const stripe = getStripe();
+    if (!stripe) {
+      return res.status(500).json({ message: 'Payment system not properly configured' });
+    }
     const refund = await stripe.refunds.create({
       charge: payment.stripeChargeId,
       amount: Math.round(payment.amount * 100), // Convert back to cents
@@ -541,8 +653,14 @@ exports.testPaymentSystem = async (req, res) => {
     if (process.env.STRIPE_SECRET_KEY) {
       try {
         // Simple API call to test Stripe connectivity
-        await stripe.balance.retrieve();
-        testResults.stripe.connected = true;
+        const stripe = getStripe();
+        if (stripe) {
+          await stripe.balance.retrieve();
+          testResults.stripe.connected = true;
+        } else {
+          testResults.stripe.connected = false;
+          testResults.stripe.error = 'Stripe not initialized';
+        }
       } catch (stripeError) {
         testResults.stripe.connected = false;
         testResults.stripe.error = stripeError.message;

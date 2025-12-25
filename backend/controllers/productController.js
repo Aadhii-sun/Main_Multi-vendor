@@ -73,9 +73,18 @@ exports.getProducts = async (req, res) => {
       query.featured = true;
     }
 
-    // Active products only (default)
+    // Active products only (default) - but allow admin to see all products
+    // If user is admin and wants all statuses, allow it via allStatus query param
+    const isAdmin = req.user && req.user.role === 'admin';
+    const showAllStatuses = req.query.allStatus === 'true' || req.query.allStatus === true;
+    
     if (!query.status) {
-      query.status = 'active';
+      // If admin requests all statuses, don't filter by status
+      if (isAdmin && showAllStatuses) {
+        // Don't set status filter - will return all products
+      } else {
+        query.status = 'active';
+      }
     }
 
     // Build sort options

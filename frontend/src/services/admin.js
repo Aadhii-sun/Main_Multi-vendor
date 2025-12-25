@@ -104,3 +104,29 @@ export const editOrder = async (id, data) => {
   return response.data;
 };
 
+// Product management
+export const getAllProducts = async (params = {}) => {
+  const response = await api.get('/products', { params });
+  return response.data;
+};
+
+export const deleteProduct = async (id) => {
+  const response = await api.delete(`/products/${id}`);
+  return response.data;
+};
+
+export const approveProduct = async (id) => {
+  const response = await api.put(`/products/${id}/approve`);
+  return response.data;
+};
+
+export const rejectProduct = async (id) => {
+  const response = await api.put(`/products/${id}/reject`);
+  return response.data;
+};
+
+export const getPendingProducts = async () => {
+  const response = await api.get('/products/pending');
+  return response.data;
+};
+

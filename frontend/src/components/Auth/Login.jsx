@@ -96,12 +96,20 @@ const Login = () => {
         }
       }
     } catch (err) {
-      const errorMsg = err.message || 'Login failed. Please try again.';
-      if (errorMsg.includes('restricted') || errorMsg.includes('authorized')) {
-        setError('Admin access is restricted. Only authorized administrators can login.');
-      } else {
-        setError(errorMsg);
+      let errorMsg = err.message || err.response?.data?.message || 'Login failed. Please try again.';
+      
+      // Better error messages for common issues
+      if (err.response?.status === 404) {
+        errorMsg = 'Backend server not found. Please make sure the backend is running on http://localhost:5000';
+      } else if (err.isNetworkError || errorMsg.includes('Network Error') || errorMsg.includes('ERR_FAILED')) {
+        errorMsg = 'Cannot connect to server. Please start the backend server with: npm start (in backend folder)';
+      } else if (errorMsg.includes('timeout')) {
+        errorMsg = 'Request timeout. Please check if the backend server is running.';
+      } else if (errorMsg.includes('restricted') || errorMsg.includes('authorized')) {
+        errorMsg = 'Admin access is restricted. Only authorized administrators can login.';
       }
+      
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

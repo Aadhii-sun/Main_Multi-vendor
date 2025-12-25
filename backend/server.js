@@ -18,8 +18,11 @@ console.log('Email User:', config.email.user ? 'Configured' : 'Missing');
 
 const app = express();
 
-// Security middleware
-app.use(helmet());
+// Security middleware - configure helmet to work with CORS
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -35,19 +38,55 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174'
 ].filter(Boolean);
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
+// More permissive CORS in development
+if (config.nodeEnv === 'development') {
+  console.log('🌐 CORS: Development mode - allowing all localhost origins');
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) {
+        console.log('✅ CORS: Allowing request with no origin');
+        return callback(null, true);
+      }
+      // Allow all localhost origins in development
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        console.log(`✅ CORS: Allowing localhost origin: ${origin}`);
+        return callback(null, true);
+      }
+      // Check allowed origins
+      if (allowedOrigins.includes(origin)) {
+        console.log(`✅ CORS: Allowing configured origin: ${origin}`);
+        return callback(null, true);
+      }
+      console.log(`❌ CORS: Blocking origin: ${origin}`);
       callback(new Error(`CORS blocked for origin: ${origin}`));
-    }
-  },
-  credentials: true
-}));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range']
+  }));
+} else {
+  console.log('🌐 CORS: Production mode - restricted origins');
+  // Production CORS - more restrictive
+  app.use(cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked for origin: ${origin}`));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  }));
+}
 
 // Stripe webhook endpoint (must be before JSON middleware)
 // This route needs raw body, not parsed JSON
@@ -62,8 +101,8 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Initialize Stripe
-const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+// Initialize Stripe (only if key is available)
+const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 // Health check endpoint
 app.get('/health', (req, res) => {

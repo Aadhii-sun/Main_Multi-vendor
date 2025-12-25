@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Container, Grid, Rating, Stack, Typography, TextField, IconButton, CircularProgress, Alert, Chip } from '@mui/material';
 import { useCart } from '../contexts/CartContext.jsx';
@@ -10,13 +10,13 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import { getProductById } from '../services/products';
 import { useQuery } from '@tanstack/react-query';
 import ProductReviews from '../components/Product/ProductReviews.jsx';
+import GalleryDetail from '../components/Product/GalleryDetail.jsx';
 
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCart();
   const { items: wish, toggle } = useWishlist();
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Fetch product from API
   // Try API first, fallback to localStorage if API fails
@@ -61,6 +61,33 @@ const ProductDetails = () => {
     enabled: !!id,
   });
 
+  // Convert product images to gallery format (must be before conditional returns)
+  const galleries = useMemo(() => {
+    if (!product) return [];
+    
+    const productImages = product.images && product.images.length > 0 
+      ? product.images 
+      : ['https://via.placeholder.com/500?text=No+Image'];
+    
+    return productImages.map((imgUrl, index) => ({
+      thumbnail: {
+        url: imgUrl,
+        alt: `${product.name || 'Product'} thumbnail ${index + 1}`,
+        format: 'thumbnail'
+      },
+      product: {
+        url: imgUrl,
+        alt: `${product.name || 'Product'} ${index + 1}`,
+        format: 'product'
+      },
+      zoom: {
+        url: imgUrl,
+        alt: `${product.name || 'Product'} zoom ${index + 1}`,
+        format: 'zoom'
+      }
+    }));
+  }, [product?.images, product?.name]);
+
   useEffect(() => {
     if (product) {
       // Add to recently viewed
@@ -95,9 +122,7 @@ const ProductDetails = () => {
     );
   }
 
-  // Get product images (API returns array)
   const productImages = product.images && product.images.length > 0 ? product.images : ['/placeholder-image.jpg'];
-  const mainImage = productImages[selectedImageIndex] || productImages[0];
 
   const handleAddToCart = () => {
     addItem({
@@ -115,46 +140,7 @@ const ProductDetails = () => {
     <Container maxWidth="lg" sx={{ mt: 4, mb: 6 }}>
       <Grid container spacing={4}>
         <Grid item xs={12} md={6}>
-          <Stack spacing={2}>
-            <Box
-              component="img"
-              src={mainImage}
-              alt={product.name}
-              sx={{
-                width: '100%',
-                height: '500px',
-                objectFit: 'contain',
-                borderRadius: 3,
-                border: '1px solid #eee',
-                backgroundColor: '#f5f5f5'
-              }}
-            />
-            {productImages.length > 1 && (
-              <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 1 }}>
-                {productImages.map((img, idx) => (
-                  <Box
-                    key={idx}
-                    component="img"
-                    src={img}
-                    alt={`${product.name} ${idx + 1}`}
-                    onClick={() => setSelectedImageIndex(idx)}
-                    sx={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 1.5,
-                      border: selectedImageIndex === idx ? '2px solid' : '1px solid #eee',
-                      borderColor: selectedImageIndex === idx ? 'primary.main' : '#eee',
-                      cursor: 'pointer',
-                      objectFit: 'cover',
-                      '&:hover': {
-                        borderColor: 'primary.main'
-                      }
-                    }}
-                  />
-                ))}
-              </Stack>
-            )}
-          </Stack>
+          <GalleryDetail galleries={galleries} thumbsPerView={4} />
         </Grid>
         <Grid item xs={12} md={6}>
           <Stack spacing={2}>

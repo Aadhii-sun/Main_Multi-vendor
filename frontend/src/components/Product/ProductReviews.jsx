@@ -322,3 +322,4 @@ const ProductReviews = ({ productId, averageRating, reviewCount }) => {
 export default ProductReviews;
 
 
+

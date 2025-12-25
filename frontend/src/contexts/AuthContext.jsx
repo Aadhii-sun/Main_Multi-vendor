@@ -90,9 +90,32 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user };
     } catch (error) {
       console.error('Login failed:', error);
+      
+      // Better error handling
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        return { 
+          success: false, 
+          error: 'Request timeout. Please check if the backend server is running on port 5000.'
+        };
+      }
+      
+      if (error.isNetworkError || error.message?.includes('Network Error') || error.message?.includes('ERR_FAILED')) {
+        return { 
+          success: false, 
+          error: 'Cannot connect to server. Please make sure the backend server is running on http://localhost:5000'
+        };
+      }
+      
+      if (error.response?.status === 404) {
+        return { 
+          success: false, 
+          error: 'API endpoint not found. Please check if the backend server is running and the API URL is correct.'
+        };
+      }
+      
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Login failed. Please try again.' 
+        error: error.response?.data?.message || error.message || 'Login failed. Please try again.' 
       };
     }
   };
