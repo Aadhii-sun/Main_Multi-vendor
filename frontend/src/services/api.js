@@ -15,8 +15,8 @@ const getApiUrl = () => {
     return 'https://ego-store.onrender.com';
   }
   
-  // Production default - check if it already has /api
-  const prodUrl = 'https://main-multi-vendor.onrender.com';
+  // Production default - your Render backend host
+  const prodUrl = 'https://ego-store.onrender.com';
   return prodUrl.endsWith('/api') ? prodUrl : `${prodUrl}/api`;
 };
 
