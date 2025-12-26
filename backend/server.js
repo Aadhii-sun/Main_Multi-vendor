@@ -144,6 +144,23 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/uploads', require('./routes/uploadRoutes'));
 app.use('/api/test', require('./routes/connectionTestRoutes'));
 
+// 404 handler for undefined routes
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    message: `API route not found: ${req.method} ${req.originalUrl}`,
+    availableRoutes: [
+      '/api/auth/signin',
+      '/api/auth/signup',
+      '/api/otp/send',
+      '/api/otp/verify',
+      '/api/products',
+      '/api/cart',
+      '/api/orders',
+      '/api/users'
+    ]
+  });
+});
+
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
