@@ -13,7 +13,25 @@ const generateResetToken = () => {
 
 exports.signup = async (req, res) => {
   const { name, email, password, role } = req.body;
+  
+  // Log incoming request for debugging
+  console.log('📝 Signup request received:', { 
+    name: name ? 'provided' : 'missing', 
+    email: email ? 'provided' : 'missing',
+    password: password ? 'provided' : 'missing',
+    role: role || 'not provided'
+  });
+  
   try {
+    // Validate required fields
+    if (!name || !email || !password) {
+      return res.status(400).json({ 
+        message: 'Missing required fields',
+        required: ['name', 'email', 'password'],
+        received: { name: !!name, email: !!email, password: !!password }
+      });
+    }
+    
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists' });
