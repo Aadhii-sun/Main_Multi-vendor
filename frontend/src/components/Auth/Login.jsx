@@ -18,6 +18,7 @@ import {
   FormHelperText,
 } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { wakeUpBackend } from '../../services/api';
 
 const Login = () => {
   const [step, setStep] = useState('email'); // 'email' or 'otp'
@@ -25,14 +26,26 @@ const Login = () => {
   const [error, setError] = useState('');
   const [email, setEmail] = useState('');
   const [userType, setUserType] = useState('user');
+  const [retrying, setRetrying] = useState(false);
   const navigate = useNavigate();
   const { loginWithOtp, verifyOtp, login } = useAuth();
 
-  const handleSendOTP = async (values) => {
+  const handleSendOTP = async (values, retry = false) => {
     let result;
     try {
       setLoading(true);
       setError('');
+      
+      // If retrying, wake up backend first
+      if (retry) {
+        setRetrying(true);
+        setError('Waking up backend... Please wait.');
+        await wakeUpBackend();
+        // Wait a bit more for backend to fully wake up
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        setRetrying(false);
+      }
+      
       // For admin, use 'admin' as type, otherwise use the userType
       const loginType = values.userType === 'admin' ? 'admin' : values.userType;
       result = await loginWithOtp(values.email, loginType);
@@ -57,6 +70,13 @@ const Login = () => {
       setError(errorMsg);
     } finally {
       setLoading(false);
+      setRetrying(false);
+    }
+  };
+  
+  const handleRetry = () => {
+    if (emailForm.values.email) {
+      handleSendOTP(emailForm.values, true);
     }
   };
 
@@ -290,6 +310,25 @@ const Login = () => {
         {error && (
           <Alert 
             severity="error" 
+            action={
+              (error.includes('waking up') || error.includes('Backend is')) && step === 'email' ? (
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={handleRetry}
+                  disabled={loading || retrying}
+                  sx={{ 
+                    color: '#fff',
+                    fontWeight: 600,
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    }
+                  }}
+                >
+                  {retrying ? 'Waking up...' : 'Retry'}
+                </Button>
+              ) : null
+            }
             sx={{ 
               mb: 2,
               backgroundColor: 'rgba(211, 47, 47, 0.1)',
@@ -312,7 +351,7 @@ const Login = () => {
             }}
           >
             <Typography sx={{ fontWeight: 500, fontSize: '0.95rem' }}>
-              ❌ {error}
+              {retrying ? '⏳ Waking up backend...' : `❌ ${error}`}
             </Typography>
           </Alert>
         )}
