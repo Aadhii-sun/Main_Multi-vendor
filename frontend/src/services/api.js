@@ -54,6 +54,8 @@ console.log('🌍 DEV mode:', import.meta.env.DEV);
 console.log('📍 Hostname:', window.location.hostname);
 console.log('📝 Example: OTP endpoint will be:', `${API_URL}/otp/send`);
 console.log('🔍 VITE_API_URL value:', import.meta.env.VITE_API_URL || 'NOT SET');
+console.log('✅ Full OTP URL:', `${API_URL}/otp/send`);
+console.log('✅ Full Verify URL:', `${API_URL}/otp/verify`);
 
 // Helper function to wake up backend (for Render free tier)
 // This pings the health endpoint to wake up sleeping backends
@@ -84,6 +86,9 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Log the full URL being called for debugging
+  const fullUrl = config.baseURL + config.url;
+  console.log(`🌐 Making request to: ${fullUrl}`);
   return config;
 }, (error) => {
   console.error('[API] Request error:', error);
@@ -95,6 +100,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     // Log detailed error information
+    const fullUrl = error.config?.baseURL + error.config?.url;
     console.error('[API Error]', {
       message: error.message,
       code: error.code,
@@ -102,8 +108,9 @@ api.interceptors.response.use(
       statusText: error.response?.statusText,
       url: error.config?.url,
       baseURL: error.config?.baseURL,
-      fullURL: error.config?.baseURL + error.config?.url
+      fullURL: fullUrl
     });
+    console.error(`❌ Failed request to: ${fullUrl}`);
 
     if (error.code === 'ECONNABORTED') {
       error.message = 'Backend is waking up (this may take up to 60 seconds). Please wait and try again.';
