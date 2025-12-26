@@ -38,14 +38,13 @@ const Login = () => {
       result = await loginWithOtp(values.email, loginType);
       if (!result.success) {
         const errorMsg = result.error || 'Failed to send OTP';
-        // Check if it's a network error - show simple message
-        if (result.isNetworkError || errorMsg.includes('connect') || errorMsg.includes('Network Error')) {
-          setError('Backend server is not running. Please start it with: npm run dev (in backend folder)');
-        } else if (errorMsg.includes('not found') || errorMsg.includes('register')) {
+        // Show the actual error message from the backend or a helpful message
+        if (errorMsg.includes('not found') && errorMsg.includes('User')) {
           setError('User not found. Please register first.');
         } else if (errorMsg.includes('restricted') || errorMsg.includes('authorized')) {
           setError('Admin access is restricted. Only authorized administrators can login.');
         } else {
+          // Show the actual error message (which now includes helpful context)
           setError(errorMsg);
         }
         return;

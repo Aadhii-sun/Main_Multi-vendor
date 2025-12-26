@@ -125,19 +125,51 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/otp/send', { email, type: userType });
       return { success: true, data: response.data };
     } catch (error) {
-      // Handle network errors
-      if (error.isNetworkError || error.message?.includes('connect') || error.message?.includes('Network Error')) {
+      console.error('[loginWithOtp] Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        isNetworkError: error.isNetworkError,
+        code: error.code
+      });
+
+      // Handle specific HTTP status codes
+      if (error.response?.status === 404) {
         return { 
           success: false, 
-          error: 'Cannot connect to server',
+          error: 'Backend endpoint not found. The backend may be sleeping. Please try again in a moment.',
+          isNetworkError: true
+        };
+      }
+
+      if (error.response?.status === 429) {
+        return { 
+          success: false, 
+          error: 'Too many requests. Please wait a few minutes before trying again.',
+          isNetworkError: false
+        };
+      }
+
+      // Handle network errors (timeout, connection refused, etc.)
+      if (error.isNetworkError || 
+          error.code === 'ECONNABORTED' || 
+          error.message?.includes('timeout') ||
+          error.message?.includes('Network Error') ||
+          !error.response) {
+        return { 
+          success: false, 
+          error: 'Cannot connect to backend server. The server may be starting up. Please wait 30 seconds and try again.',
           isNetworkError: true
         };
       }
       
+      // Handle API error responses
       const errorMessage = error.response?.data?.message || error.message || 'Failed to send OTP';
       return { 
         success: false, 
-        error: errorMessage
+        error: errorMessage,
+        isNetworkError: false
       };
     }
   };
