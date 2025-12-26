@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Default to localhost in development, production URL otherwise
 const getApiUrl = () => {
-  // Check if VITE_API_URL is explicitly set
+  // Check if VITE_API_URL is explicitly set (available at build time)
   if (import.meta.env.VITE_API_URL) {
     const url = import.meta.env.VITE_API_URL;
     // Ensure it ends with /api if not already included
@@ -11,12 +11,16 @@ const getApiUrl = () => {
   }
   
   // In development, default to localhost with /api
-  if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+  const isDevelopment = import.meta.env.DEV || 
+                        window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1';
+  
+  if (isDevelopment) {
     return 'http://localhost:5000/api';
   }
   
   // Production default - your Render backend host
-  // The /api suffix will be automatically appended
+  // Always use the backend URL in production (when not localhost)
   const prodUrl = 'https://ego-store.onrender.com';
   return prodUrl.endsWith('/api') ? prodUrl : `${prodUrl}/api`;
 };
