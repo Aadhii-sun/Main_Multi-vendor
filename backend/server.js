@@ -35,7 +35,7 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// CORS configuration
+// CORS configuration - MUST be before routes
 const allowedOrigins = [
   config.clientUrl,
   process.env.CLIENT_URL,
@@ -43,53 +43,52 @@ const allowedOrigins = [
   'http://127.0.0.1:5173',
   'http://localhost:3000',
   'http://localhost:5174',
-  'http://127.0.0.1:5174'
+  'http://127.0.0.1:5174',
+  'https://ego-store-frontend.onrender.com' // Production frontend - EXPLICITLY ADDED
 ].filter(Boolean);
 
-// More permissive CORS in development
-if (config.nodeEnv === 'development') {
-  console.log('🌐 CORS: Development mode - allowing all localhost origins');
-  app.use(cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) {
-        console.log('✅ CORS: Allowing request with no origin');
-        return callback(null, true);
-      }
-      // Allow all localhost origins in development
-      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        console.log(`✅ CORS: Allowing localhost origin: ${origin}`);
-        return callback(null, true);
-      }
-      // Check allowed origins
-      if (allowedOrigins.includes(origin)) {
-        console.log(`✅ CORS: Allowing configured origin: ${origin}`);
-        return callback(null, true);
-      }
-      console.log(`❌ CORS: Blocking origin: ${origin}`);
-      callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    exposedHeaders: ['Content-Range', 'X-Content-Range']
-  }));
-} else {
-  console.log('🌐 CORS: Production mode - restricted origins');
-  // Production CORS - more restrictive
-  app.use(cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS blocked for origin: ${origin}`));
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-  }));
-}
+// Remove duplicates and empty values, normalize URLs (remove trailing slashes)
+const uniqueOrigins = [...new Set(allowedOrigins.map(url => url ? url.replace(/\/$/, '') : null).filter(Boolean))];
+
+console.log('🌐 CORS Configuration:');
+console.log('   Environment:', config.nodeEnv);
+console.log('   Allowed origins:', uniqueOrigins);
+
+// CORS middleware - works for both development and production
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, or curl requests)
+    if (!origin) {
+      console.log('✅ CORS: Allowing request with no origin');
+      return callback(null, true);
+    }
+    
+    // Normalize origin (remove trailing slash)
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    
+    // Check if origin is in allowed list
+    if (uniqueOrigins.includes(normalizedOrigin)) {
+      console.log(`✅ CORS: Allowing origin: ${normalizedOrigin}`);
+      return callback(null, true);
+    }
+    
+    // In development, allow all localhost origins
+    if (config.nodeEnv === 'development' && (normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1'))) {
+      console.log(`✅ CORS: Allowing localhost origin: ${normalizedOrigin}`);
+      return callback(null, true);
+    }
+    
+    // Log blocked origin for debugging
+    console.log(`❌ CORS: Blocking origin: ${normalizedOrigin}`);
+    console.log(`   Allowed origins: ${uniqueOrigins.join(', ')}`);
+    console.log(`   CLIENT_URL env var: ${process.env.CLIENT_URL || 'NOT SET'}`);
+    callback(new Error(`CORS blocked for origin: ${normalizedOrigin}. Allowed: ${uniqueOrigins.join(', ')}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
+}));
 
 // Stripe webhook endpoint (must be before JSON middleware)
 // This route needs raw body, not parsed JSON
