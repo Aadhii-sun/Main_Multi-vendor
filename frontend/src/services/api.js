@@ -27,11 +27,11 @@ const getApiUrl = () => {
   
   // Production - always use the backend URL (absolute URL required)
   // This ensures the frontend always connects to the correct backend
-  const prodUrl = 'https://ego-store.onrender.com';
+  const prodUrl = 'https://ego-store-backend.onrender.com';
   const apiUrl = prodUrl.endsWith('/api') ? prodUrl : `${prodUrl}/api`;
   
   console.warn('⚠️ VITE_API_URL not set. Using default production URL:', apiUrl);
-  console.warn('💡 Set VITE_API_URL=https://ego-store.onrender.com in Render and redeploy');
+  console.warn('💡 Set VITE_API_URL=https://ego-store-backend.onrender.com in Render and redeploy');
   console.log('🌐 Production mode detected. Hostname:', hostname);
   
   return apiUrl;
@@ -43,7 +43,7 @@ let API_URL = getApiUrl();
 if (!API_URL.startsWith('http://') && !API_URL.startsWith('https://')) {
   console.error('❌ ERROR: API_URL is not an absolute URL:', API_URL);
   // Force production URL as fallback
-  API_URL = 'https://ego-store.onrender.com/api';
+  API_URL = 'https://ego-store-backend.onrender.com/api';
   console.log('🔧 Forced to use production URL:', API_URL);
 }
 
