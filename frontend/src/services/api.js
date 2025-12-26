@@ -121,8 +121,14 @@ api.interceptors.response.use(
       error.isNetworkError = true;
       error.isBackendSleeping = true;
     } else if (error.response?.status === 404) {
-      error.message = `Endpoint not found: ${error.config?.url}. Backend may be sleeping or route doesn't exist.`;
+      const fullUrl = error.config?.baseURL + error.config?.url;
+      error.message = `404 Not Found: ${fullUrl}\n\nPossible causes:\n1. Backend route doesn't exist\n2. Backend is sleeping (wait 30-60s and retry)\n3. Wrong API URL configuration\n\nCheck console for full URL details.`;
       error.isNetworkError = true;
+      console.error('🔍 404 Error Details:');
+      console.error('  Requested URL:', fullUrl);
+      console.error('  Base URL:', error.config?.baseURL);
+      console.error('  Endpoint:', error.config?.url);
+      console.error('  Expected backend:', 'https://ego-store-backend.onrender.com');
     }
     return Promise.reject(error);
   }
