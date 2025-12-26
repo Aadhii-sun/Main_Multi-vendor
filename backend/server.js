@@ -144,8 +144,8 @@ app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/uploads', require('./routes/uploadRoutes'));
 app.use('/api/test', require('./routes/connectionTestRoutes'));
 
-// 404 handler for undefined routes
-app.use('/api/*', (req, res) => {
+// 404 handler for undefined API routes (must be after all other routes)
+app.use('/api', (req, res) => {
   res.status(404).json({
     message: `API route not found: ${req.method} ${req.originalUrl}`,
     availableRoutes: [
