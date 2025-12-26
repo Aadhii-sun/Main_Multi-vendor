@@ -1,166 +1,281 @@
-# Render Deployment Guide for ManiProject
+# Complete Deployment Guide - Render.com
+
+This guide will help you deploy both backend and frontend to Render.com.
 
 ## Prerequisites
-- GitHub account with repository pushed
-- Render.com account (free tier available)
-- Environment variables ready
 
-## Step-by-Step Deployment
+- ✅ GitHub repository with your code pushed
+- ✅ MongoDB Atlas account (or MongoDB connection string)
+- ✅ Render.com account (free tier works)
+- ✅ All environment variables ready
 
-### 1. Push Code to GitHub
-```bash
-git add .
-git commit -m "Prepare for Render deployment"
-git push origin main
-```
+---
 
-### 2. Backend Deployment
+## Step 1: Deploy Backend First
 
-#### Create Backend Service on Render:
-1. Go to [render.com](https://render.com)
-2. Click "New +" → "Web Service"
+### 1.1 Create Backend Service on Render
+
+1. Go to [Render Dashboard](https://dashboard.render.com)
+2. Click **"New +"** → **"Web Service"**
 3. Connect your GitHub repository
-4. Fill in the following:
-   - **Name:** maniproject-backend
-   - **Environment:** Node
-   - **Region:** Oregon (or closest to you)
-   - **Plan:** Free
-   - **Build Command:** `npm install`
-   - **Start Command:** `npm run start`
-   - **Root Directory:** `backend`
+4. Select branch: `main` (or your default branch)
 
-#### Add Environment Variables:
-Click "Advanced" and add these:
+### 1.2 Configure Backend Settings
 
+**Basic Settings:**
+- **Name:** `ego-store-backend` (or your preferred name)
+- **Environment:** `Node`
+- **Region:** `Oregon` (or closest to you)
+- **Branch:** `main`
+- **Root Directory:** `backend` ⚠️ **IMPORTANT**
+- **Runtime:** `Node`
+- **Build Command:** `npm install`
+- **Start Command:** `npm start`
+- **Plan:** `Free` (or upgrade if needed)
+
+### 1.3 Add Environment Variables
+
+Click **"Advanced"** → **"Add Environment Variable"** and add:
+
+#### Required Variables:
 ```
 NODE_ENV=production
 PORT=5000
 MONGO_URI=mongodb+srv://[USERNAME]:[PASSWORD]@[CLUSTER].mongodb.net/ecommerce?retryWrites=true&w=majority
-JWT_SECRET=your_jwt_secret_here
+JWT_SECRET=your_strong_jwt_secret_here_minimum_32_characters_long
+CLIENT_URL=https://ego-store-frontend.onrender.com
+```
+
+#### Optional Variables (if you use these features):
+```
 EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_app_password
-STRIPE_SECRET_KEY=sk_test_xxxxx
-STRIPE_WEBHOOK_SECRET=whsec_xxxxx
-CLIENT_URL=https://maniproject-frontend.onrender.com
+EMAIL_PASS=your_gmail_app_password
+STRIPE_SECRET_KEY=sk_test_your_stripe_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 ```
 
-5. Click "Create Web Service"
-6. Wait for deployment (5-10 minutes)
-7. Copy the backend URL (e.g., `https://maniproject-backend.onrender.com`)
+### 1.4 Create and Deploy
 
-### 3. Frontend Deployment
+1. Click **"Create Web Service"**
+2. Wait 5-10 minutes for initial deployment
+3. Note your backend URL: `https://ego-store-backend.onrender.com`
 
-#### Create Frontend Service on Render:
-1. Click "New +" → "Static Site"
-2. Connect your GitHub repository
-3. Fill in the following:
-   - **Name:** maniproject-frontend
-   - **Environment:** Static
-   - **Region:** Oregon
-   - **Plan:** Free
-   - **Build Command:** `cd frontend && npm install && npm run build`
-   - **Publish Directory:** `frontend/dist`
-   - **Root Directory:** `/`
+### 1.5 Verify Backend Deployment
 
-#### Add Environment Variables:
+1. Check **Logs** tab - look for:
+   - `✅ MongoDB Connected Successfully`
+   - `Server running in production mode on port 5000`
+
+2. Test health endpoint:
+   ```
+   https://your-backend-url.onrender.com/health
+   ```
+   Should return:
+   ```json
+   {
+     "status": "healthy",
+     "timestamp": "...",
+     "uptime": ...,
+     "environment": "production"
+   }
+   ```
+
+3. Test API endpoint:
+   ```
+   https://your-backend-url.onrender.com/api/test
+   ```
+
+---
+
+## Step 2: Deploy Frontend
+
+### 2.1 Create Frontend Service on Render
+
+1. Go to [Render Dashboard](https://dashboard.render.com)
+2. Click **"New +"** → **"Static Site"**
+3. Connect your GitHub repository (same as backend)
+4. Select branch: `main`
+
+### 2.2 Configure Frontend Settings
+
+**Basic Settings:**
+- **Name:** `ego-store-frontend` (or your preferred name)
+- **Environment:** `Static`
+- **Region:** `Oregon` (or same as backend)
+- **Branch:** `main`
+- **Root Directory:** `frontend` ⚠️ **IMPORTANT**
+- **Build Command:** `npm install && npm run build`
+- **Publish Directory:** `dist` ⚠️ **IMPORTANT**
+- **Plan:** `Free` (or upgrade if needed)
+
+### 2.3 Add Environment Variables
+
+Click **"Environment"** → **"Add Environment Variable"**:
+
 ```
-VITE_API_URL=https://maniproject-backend.onrender.com/api
-VITE_BASE_URL=https://maniproject-frontend.onrender.com
+VITE_API_URL=https://ego-store-backend.onrender.com
 ```
 
-4. Click "Create Static Site"
-5. Wait for deployment (3-5 minutes)
+⚠️ **IMPORTANT:** Replace `ego-store-backend.onrender.com` with your actual backend URL from Step 1.4
 
-### 4. Update Backend Environment
+### 2.4 Create and Deploy
 
-After frontend is deployed:
-1. Go to Backend service settings
-2. Update `CLIENT_URL` to your frontend URL
-3. Redeploy
+1. Click **"Create Static Site"**
+2. Wait 5-10 minutes for initial deployment
+3. Note your frontend URL: `https://ego-store-frontend.onrender.com`
 
-### 5. Connect MongoDB Atlas
+### 2.5 Update Backend CORS
 
-If you don't have MongoDB yet:
-1. Go to [mongodb.com](https://mongodb.com)
-2. Create a free cluster
-3. Create a user and database
-4. Get connection string
-5. Add to backend `MONGO_URI` environment variable
+1. Go back to your **Backend Service** on Render
+2. Go to **Environment** tab
+3. Update `CLIENT_URL` to match your frontend URL:
+   ```
+   CLIENT_URL=https://ego-store-frontend.onrender.com
+   ```
+4. Click **"Save Changes"** - this will trigger a redeploy
 
-### 6. Update Frontend API URL
+---
 
-In `frontend/src/services/api.js`:
-```javascript
-const API_URL = import.meta.env.VITE_API_URL || 'https://maniproject-backend.onrender.com/api';
-```
+## Step 3: Final Verification
 
-### 7. Test the Deployment
+### 3.1 Test Frontend
 
-**Backend:**
-- Visit: `https://maniproject-backend.onrender.com/api/health` (if you have a health check)
+1. Visit your frontend URL: `https://ego-store-frontend.onrender.com`
+2. Open browser console (F12)
+3. Check for:
+   - ✅ API URL is correct
+   - ✅ No CORS errors
+   - ✅ Backend connection successful
 
-**Frontend:**
-- Visit: `https://maniproject-frontend.onrender.com`
-- Try admin login with:
-  - Email: `adithyaananimon9@gmail.com`
-  - Password: `Adi@123456789`
+### 3.2 Test Full Flow
+
+1. **Register a new user**
+2. **Login**
+3. **Browse products**
+4. **Add to cart**
+5. **Checkout** (if payment is configured)
+
+### 3.3 Check Backend Logs
+
+Monitor backend logs for any errors:
+- Go to Backend Service → **Logs** tab
+- Look for any error messages
+- Verify all API calls are being received
+
+---
+
+## Important Notes
+
+### Free Tier Limitations
+
+- **Backend:** May sleep after 15 minutes of inactivity
+- **Frontend:** Always available (static sites don't sleep)
+- **First request after sleep:** May take 30-60 seconds to wake up
+
+### Environment Variables
+
+- **Never commit `.env` files to GitHub**
+- **Always set variables in Render Dashboard**
+- **Backend variables:** Set in Backend Service → Environment
+- **Frontend variables:** Must start with `VITE_` prefix
+
+### CORS Configuration
+
+- Backend `CLIENT_URL` must match frontend URL exactly
+- Include `https://` in the URL
+- No trailing slash
+
+### MongoDB Atlas
+
+- Ensure MongoDB Atlas allows connections from `0.0.0.0/0` (all IPs)
+- Or add Render's IP ranges to whitelist
+- Verify connection string format is correct
+
+---
 
 ## Troubleshooting
 
-### Backend not starting?
-- Check logs in Render dashboard
-- Verify `package.json` has correct `start` script
-- Ensure all environment variables are set
+### Backend won't start?
 
-### Frontend shows blank?
-- Check browser console for API errors
-- Verify `VITE_API_URL` is correct
-- Check if CORS is enabled on backend
+1. Check **Logs** tab for errors
+2. Verify all required environment variables are set:
+   - `MONGO_URI`
+   - `JWT_SECRET`
+   - `CLIENT_URL`
+3. Ensure MongoDB connection string is correct
+4. Check if port is set correctly (Render auto-assigns, but PORT=5000 is good)
 
-### Database connection issues?
-- Verify MongoDB URI is correct
-- Check IP whitelist in MongoDB Atlas (allow 0.0.0.0/0 for Render)
-- Ensure database user has correct permissions
+### CORS errors?
 
-### Free tier limitations?
-- Auto-spins down after 15 minutes of inactivity
-- Limited to 0.5 GB RAM
-- First deployment takes longer
+1. Verify `CLIENT_URL` in backend matches frontend URL exactly
+2. Check backend logs for CORS blocking messages
+3. Ensure frontend URL includes `https://`
+4. No trailing slash in `CLIENT_URL`
 
-## Upgrade to Paid (Optional)
+### Frontend can't connect to backend?
 
-For better performance:
-- Upgrade to Starter ($7/month) or higher
-- No more spin-down time
-- More RAM and resources
+1. Verify `VITE_API_URL` is set correctly in frontend
+2. Check browser console for API URL being used
+3. Ensure backend is awake (make a request to `/health`)
+4. Check backend logs to see if requests are received
 
-## Environment Variables Reference
+### Database connection fails?
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| MONGO_URI | MongoDB connection string | mongodb+srv://user:pass@cluster.mongodb.net/db |
-| JWT_SECRET | JWT signing secret | your_secret_key_123 |
-| EMAIL_USER | Gmail for sending emails | your_email@gmail.com |
-| EMAIL_PASS | Gmail app password | xxxx xxxx xxxx xxxx |
-| STRIPE_SECRET_KEY | Stripe test key | sk_test_xxxxx |
-| CLIENT_URL | Frontend URL | https://maniproject-frontend.onrender.com |
-| VITE_API_URL | Backend API URL | https://maniproject-backend.onrender.com/api |
+1. Verify MongoDB Atlas IP whitelist allows `0.0.0.0/0`
+2. Check MongoDB connection string format
+3. Ensure database user has correct permissions
+4. Test connection string locally first
 
-## Deployment Checklist
+### 404 errors on API calls?
 
-- [ ] Code pushed to GitHub
-- [ ] Backend service created on Render
-- [ ] Frontend service created on Render
-- [ ] Environment variables added
-- [ ] MongoDB cluster created and connected
-- [ ] Backend and frontend URLs configured
-- [ ] Health check successful
-- [ ] Admin login working
-- [ ] Products loading correctly
-- [ ] Cart and checkout functional
+1. Verify routes are mounted correctly in `server.js`
+2. Check that all routes start with `/api`
+3. Ensure backend is fully started (check logs)
+4. Test endpoints directly: `https://backend-url.onrender.com/api/test`
 
-## Need Help?
+---
 
-- Render Docs: https://render.com/docs
-- MongoDB Atlas Docs: https://docs.atlas.mongodb.com
-- GitHub: Push any fixes and redeploy automatically
+## Quick Reference
+
+### Backend URLs
+- **Health Check:** `https://ego-store-backend.onrender.com/health`
+- **API Base:** `https://ego-store-backend.onrender.com/api`
+- **Test Endpoint:** `https://ego-store-backend.onrender.com/api/test`
+
+### Frontend URL
+- **Live Site:** `https://ego-store-frontend.onrender.com`
+
+### Environment Variables Checklist
+
+**Backend:**
+- [ ] `NODE_ENV=production`
+- [ ] `PORT=5000`
+- [ ] `MONGO_URI=...`
+- [ ] `JWT_SECRET=...`
+- [ ] `CLIENT_URL=...`
+- [ ] `EMAIL_USER=...` (optional)
+- [ ] `EMAIL_PASS=...` (optional)
+- [ ] `STRIPE_SECRET_KEY=...` (optional)
+
+**Frontend:**
+- [ ] `VITE_API_URL=...`
+
+---
+
+## Next Steps After Deployment
+
+1. ✅ Test all major features
+2. ✅ Set up custom domain (optional)
+3. ✅ Configure monitoring (optional)
+4. ✅ Set up automated backups for MongoDB
+5. ✅ Review security settings
+
+---
+
+**Need Help?**
+- Check Render logs for detailed error messages
+- Verify all environment variables are set correctly
+- Ensure MongoDB Atlas is accessible from Render's IPs
+- Test endpoints individually to isolate issues
