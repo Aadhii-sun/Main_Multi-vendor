@@ -46,16 +46,21 @@ router.get('/test', (req, res) => {
 
 // Public routes (no authentication required)
 console.log('📋 Registering OTP routes...');
+console.log('🔍 Router instance:', router);
+console.log('🔍 Router stack before registration:', router.stack?.length || 0);
+
 router.post('/send', otpLimiter, (req, res, next) => {
   console.log('📨 OTP /send route hit!', {
     method: req.method,
     url: req.originalUrl,
     path: req.path,
+    baseUrl: req.baseUrl,
     body: { email: req.body?.email, type: req.body?.type }
   });
   next();
 }, sendOTP);
 console.log('✅ Registered: POST /api/otp/send');
+console.log('🔍 Router stack after /send:', router.stack?.length || 0);
 
 router.post('/verify', verifyLimiter, (req, res, next) => {
   console.log('📨 OTP /verify route hit!', {

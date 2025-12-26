@@ -139,6 +139,33 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Route listing endpoint (for debugging)
+app.get('/api/routes', (req, res) => {
+  const routes = [];
+  app._router.stack.forEach((middleware) => {
+    if (middleware.route) {
+      routes.push({
+        path: middleware.route.path,
+        methods: Object.keys(middleware.route.methods)
+      });
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach((handler) => {
+        if (handler.route) {
+          routes.push({
+            path: middleware.regexp.source + handler.route.path,
+            methods: Object.keys(handler.route.methods)
+          });
+        }
+      });
+    }
+  });
+  res.json({
+    message: 'Registered routes',
+    count: routes.length,
+    routes: routes.filter(r => r.path.includes('otp') || r.path.includes('api'))
+  });
+});
+
 // Routes
 console.log('📋 Registering API routes...');
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -147,11 +174,20 @@ console.log('✅ Registered: /api/auth');
 // OTP routes - verify mounting
 try {
   const otpRoutes = require('./routes/otpRoutes');
+  console.log('📦 OTP routes module loaded:', typeof otpRoutes);
   app.use('/api/otp', otpRoutes);
   console.log('✅ Registered: /api/otp');
   console.log('✅ OTP routes mounted successfully');
+  // Log all registered OTP routes
+  if (otpRoutes && otpRoutes.stack) {
+    console.log('📋 OTP route stack:', otpRoutes.stack.map(layer => ({
+      path: layer.route?.path,
+      method: layer.route?.methods
+    })));
+  }
 } catch (error) {
   console.error('❌ ERROR: Failed to load OTP routes:', error);
+  console.error('❌ Error stack:', error.stack);
   throw error;
 }
 app.use('/api/users', require('./routes/userRoutes'));
