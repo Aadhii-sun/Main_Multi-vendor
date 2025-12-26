@@ -18,6 +18,9 @@ console.log('Email User:', config.email.user ? 'Configured' : 'Missing');
 
 const app = express();
 
+// Trust proxy - required for Render and rate limiting
+app.set('trust proxy', 1);
+
 // Security middleware - configure helmet to work with CORS
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
