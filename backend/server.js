@@ -143,8 +143,17 @@ app.get('/api/test', (req, res) => {
 console.log('📋 Registering API routes...');
 app.use('/api/auth', require('./routes/authRoutes'));
 console.log('✅ Registered: /api/auth');
-app.use('/api/otp', require('./routes/otpRoutes'));
-console.log('✅ Registered: /api/otp');
+
+// OTP routes - verify mounting
+try {
+  const otpRoutes = require('./routes/otpRoutes');
+  app.use('/api/otp', otpRoutes);
+  console.log('✅ Registered: /api/otp');
+  console.log('✅ OTP routes mounted successfully');
+} catch (error) {
+  console.error('❌ ERROR: Failed to load OTP routes:', error);
+  throw error;
+}
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/sellers', require('./routes/sellerRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
