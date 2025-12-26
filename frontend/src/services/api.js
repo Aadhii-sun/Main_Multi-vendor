@@ -12,10 +12,11 @@ const getApiUrl = () => {
   
   // In development, default to localhost with /api
   if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'https://ego-store.onrender.com';
+    return 'http://localhost:5000/api';
   }
   
   // Production default - your Render backend host
+  // The /api suffix will be automatically appended
   const prodUrl = 'https://ego-store.onrender.com';
   return prodUrl.endsWith('/api') ? prodUrl : `${prodUrl}/api`;
 };
