@@ -115,6 +115,16 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Test endpoint to verify API routing
+app.get('/api/test', (req, res) => {
+  res.json({
+    message: 'API is working!',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    clientUrl: process.env.CLIENT_URL
+  });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/otp', require('./routes/otpRoutes'));

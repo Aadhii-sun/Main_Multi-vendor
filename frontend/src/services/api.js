@@ -60,7 +60,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 30000, // 30 second timeout (increased for Render free tier wake-up time)
 });
 
 // Add token to requests
@@ -79,11 +79,25 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Log detailed error information
+    console.error('[API Error]', {
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      url: error.config?.url,
+      baseURL: error.config?.baseURL,
+      fullURL: error.config?.baseURL + error.config?.url
+    });
+
     if (error.code === 'ECONNABORTED') {
-      error.message = 'Request timeout';
+      error.message = 'Request timeout - Backend may be sleeping. Please try again.';
       error.isNetworkError = true;
     } else if (error.message === 'Network Error' || !error.response) {
-      error.message = 'Network Error';
+      error.message = 'Network Error - Backend may be sleeping. Please try again.';
+      error.isNetworkError = true;
+    } else if (error.response?.status === 404) {
+      error.message = `Endpoint not found: ${error.config?.url}. Backend may be sleeping or route doesn't exist.`;
       error.isNetworkError = true;
     }
     return Promise.reject(error);
