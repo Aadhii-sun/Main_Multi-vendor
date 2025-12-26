@@ -223,18 +223,47 @@ export const AuthProvider = ({ children }) => {
         role: userData.userType || userData.role || 'user',
       };
 
-      await api.post('/auth/signup', payload);
+      console.log('📝 Register payload:', payload);
+      const response = await api.post('/auth/signup', payload);
+      console.log('✅ Registration successful:', response.data);
+      
       return { 
         success: true, 
-        message: 'Registration successful! Please check your email for verification.' 
+        message: 'Registration successful! Please check your email for verification.',
+        user: response.data.user,
+        token: response.data.token
       };
     } catch (error) {
-      console.error('Registration failed:', error);
-      const validationMessage = error.response?.data?.errors?.[0]?.msg;
+      console.error('❌ Registration failed:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        errors: error.response?.data?.errors
+      });
+      
+      // Handle validation errors (400)
+      if (error.response?.status === 400) {
+        const validationErrors = error.response?.data?.errors;
+        if (validationErrors && validationErrors.length > 0) {
+          // Return first validation error message
+          const firstError = validationErrors[0].msg || validationErrors[0];
+          return { 
+            success: false, 
+            error: firstError
+          };
+        }
+        // Return server message if no validation errors array
+        return { 
+          success: false, 
+          error: error.response?.data?.message || 'Invalid registration data. Please check your input.'
+        };
+      }
+      
+      // Handle other errors
       const serverMessage = error.response?.data?.message;
       return { 
         success: false, 
-        error: validationMessage || serverMessage || error.message || 'Registration failed. Please try again.' 
+        error: serverMessage || error.message || 'Registration failed. Please try again.' 
       };
     }
   };
