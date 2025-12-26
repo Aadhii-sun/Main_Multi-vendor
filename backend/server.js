@@ -98,6 +98,18 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), req
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Request logging middleware (for debugging)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log(`📥 ${req.method} ${req.path}`, {
+      query: req.query,
+      bodyKeys: req.body ? Object.keys(req.body) : [],
+      contentType: req.headers['content-type']
+    });
+  }
+  next();
+});
+
 // Logging middleware
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));

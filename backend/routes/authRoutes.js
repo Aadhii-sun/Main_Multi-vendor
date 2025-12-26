@@ -11,7 +11,14 @@ const {
 const { validateUserSignup, validateUserSignin } = require('../middleware/validationMiddleware');
 const authMiddleware = require('../middleware/authMiddleware');
 
-router.post('/signup', validateUserSignup, signup);
+// Add logging middleware before validation
+router.post('/signup', (req, res, next) => {
+  console.log('📝 /api/auth/signup route hit!', {
+    body: req.body,
+    bodyKeys: Object.keys(req.body || {})
+  });
+  next();
+}, validateUserSignup, signup);
 router.post('/signin', validateUserSignin, signin);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);

@@ -12,14 +12,18 @@ const generateResetToken = () => {
 };
 
 exports.signup = async (req, res) => {
+  // Log FULL request body for debugging
+  console.log('📝 Signup request received - Full body:', JSON.stringify(req.body, null, 2));
+  console.log('📝 Signup request - Headers:', JSON.stringify(req.headers, null, 2));
+  
   const { name, email, password, role } = req.body;
   
-  // Log incoming request for debugging
-  console.log('📝 Signup request received:', { 
-    name: name ? 'provided' : 'missing', 
-    email: email ? 'provided' : 'missing',
-    password: password ? 'provided' : 'missing',
-    role: role || 'not provided'
+  // Log extracted fields
+  console.log('📝 Extracted fields:', { 
+    name: name ? `"${name}" (${name.length} chars)` : 'MISSING', 
+    email: email ? `"${email}"` : 'MISSING',
+    password: password ? `"${'*'.repeat(password.length)}" (${password.length} chars)` : 'MISSING',
+    role: role || 'not provided (will default to user)'
   });
   
   try {

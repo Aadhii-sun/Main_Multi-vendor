@@ -28,10 +28,17 @@ const verifyLimiter = rateLimit({
 
 // Public routes (no authentication required)
 console.log('📋 Registering OTP routes...');
-router.post('/send', otpLimiter, sendOTP);
-console.log('✅ Registered: POST /send');
+router.post('/send', otpLimiter, (req, res, next) => {
+  console.log('📨 OTP /send route hit!', {
+    method: req.method,
+    url: req.originalUrl,
+    body: { email: req.body?.email, type: req.body?.type }
+  });
+  next();
+}, sendOTP);
+console.log('✅ Registered: POST /api/otp/send');
 router.post('/verify', verifyLimiter, verifyOTP);
-console.log('✅ Registered: POST /verify');
+console.log('✅ Registered: POST /api/otp/verify');
 router.post('/resend', otpLimiter, resendOTP);
 router.get('/status/:email', checkOTPStatus);
 
