@@ -156,11 +156,13 @@ export const AuthProvider = ({ children }) => {
           error.code === 'ECONNABORTED' || 
           error.message?.includes('timeout') ||
           error.message?.includes('Network Error') ||
+          error.message?.includes('waking up') ||
           !error.response) {
         return { 
           success: false, 
-          error: 'Cannot connect to backend server. The server may be starting up. Please wait 30 seconds and try again.',
-          isNetworkError: true
+          error: 'Backend is waking up (this may take up to 60 seconds on free tier). Please wait and try again in a moment.',
+          isNetworkError: true,
+          isBackendSleeping: true
         };
       }
       

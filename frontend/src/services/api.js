@@ -55,12 +55,27 @@ console.log('📍 Hostname:', window.location.hostname);
 console.log('📝 Example: OTP endpoint will be:', `${API_URL}/otp/send`);
 console.log('🔍 VITE_API_URL value:', import.meta.env.VITE_API_URL || 'NOT SET');
 
+// Helper function to wake up backend (for Render free tier)
+// This pings the health endpoint to wake up sleeping backends
+export const wakeUpBackend = async () => {
+  try {
+    const baseUrl = API_URL.replace('/api', '');
+    const healthUrl = baseUrl.endsWith('/health') ? baseUrl : `${baseUrl}/health`;
+    await axios.get(healthUrl, { timeout: 60000 });
+    console.log('✅ Backend is awake');
+    return true;
+  } catch (error) {
+    console.warn('⚠️ Backend wake-up check failed:', error.message);
+    return false;
+  }
+};
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 second timeout (increased for Render free tier wake-up time)
+  timeout: 60000, // 60 second timeout (Render free tier can take 30-60s to wake up)
 });
 
 // Add token to requests
@@ -91,11 +106,13 @@ api.interceptors.response.use(
     });
 
     if (error.code === 'ECONNABORTED') {
-      error.message = 'Request timeout - Backend may be sleeping. Please try again.';
+      error.message = 'Backend is waking up (this may take up to 60 seconds). Please wait and try again.';
       error.isNetworkError = true;
+      error.isBackendSleeping = true;
     } else if (error.message === 'Network Error' || !error.response) {
-      error.message = 'Network Error - Backend may be sleeping. Please try again.';
+      error.message = 'Backend is waking up. Please wait a moment and try again.';
       error.isNetworkError = true;
+      error.isBackendSleeping = true;
     } else if (error.response?.status === 404) {
       error.message = `Endpoint not found: ${error.config?.url}. Backend may be sleeping or route doesn't exist.`;
       error.isNetworkError = true;
