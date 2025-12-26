@@ -23,11 +23,11 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
-// Log API URL in development
-if (import.meta.env.DEV) {
-  console.log('🔗 API Base URL:', API_URL);
-  console.log('📝 Example: OTP endpoint will be:', `${API_URL}/otp/send`);
-}
+// Log API URL in all environments for debugging
+console.log('🔗 API Base URL:', API_URL);
+console.log('🌍 Environment:', import.meta.env.MODE);
+console.log('📍 Hostname:', window.location.hostname);
+console.log('📝 Example: OTP endpoint will be:', `${API_URL}/otp/send`);
 
 const api = axios.create({
   baseURL: API_URL,
