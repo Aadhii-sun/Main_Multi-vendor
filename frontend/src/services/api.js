@@ -8,40 +8,52 @@ const getApiUrl = () => {
   if (viteApiUrl && viteApiUrl.trim() !== '') {
     const url = viteApiUrl.trim();
     // Ensure it ends with /api if not already included
-    return url.endsWith('/api') ? url : (url.endsWith('/') ? `${url}api` : `${url}/api`);
+    const apiUrl = url.endsWith('/api') ? url : (url.endsWith('/') ? `${url}api` : `${url}/api`);
+    console.log('✅ Using VITE_API_URL:', apiUrl);
+    return apiUrl;
   }
   
-  // In development, default to localhost with /api
+  // Detect if we're in development (localhost)
+  const hostname = window.location.hostname;
   const isDevelopment = import.meta.env.DEV || 
-                        window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1';
+                        hostname === 'localhost' || 
+                        hostname === '127.0.0.1';
   
   if (isDevelopment) {
-    return 'http://localhost:5000/api';
+    const devUrl = 'http://localhost:5000/api';
+    console.log('🔧 Development mode - using:', devUrl);
+    return devUrl;
   }
   
-  // Production default - your Render backend host
-  // Always use the backend URL in production (when not localhost)
+  // Production - always use the backend URL (absolute URL required)
   // This ensures the frontend always connects to the correct backend
   const prodUrl = 'https://ego-store.onrender.com';
   const apiUrl = prodUrl.endsWith('/api') ? prodUrl : `${prodUrl}/api`;
   
-  // Log warning if VITE_API_URL is not set in production
-  if (!viteApiUrl) {
-    console.warn('⚠️ VITE_API_URL not set. Using default production URL:', apiUrl);
-    console.warn('💡 Set VITE_API_URL=https://ego-store.onrender.com in Render for better control');
-  }
+  console.warn('⚠️ VITE_API_URL not set. Using default production URL:', apiUrl);
+  console.warn('💡 Set VITE_API_URL=https://ego-store.onrender.com in Render and redeploy');
+  console.log('🌐 Production mode detected. Hostname:', hostname);
   
   return apiUrl;
 };
 
-const API_URL = getApiUrl();
+let API_URL = getApiUrl();
+
+// Ensure API_URL is always an absolute URL (not relative)
+if (!API_URL.startsWith('http://') && !API_URL.startsWith('https://')) {
+  console.error('❌ ERROR: API_URL is not an absolute URL:', API_URL);
+  // Force production URL as fallback
+  API_URL = 'https://ego-store.onrender.com/api';
+  console.log('🔧 Forced to use production URL:', API_URL);
+}
 
 // Log API URL in all environments for debugging
 console.log('🔗 API Base URL:', API_URL);
 console.log('🌍 Environment:', import.meta.env.MODE);
+console.log('🌍 DEV mode:', import.meta.env.DEV);
 console.log('📍 Hostname:', window.location.hostname);
 console.log('📝 Example: OTP endpoint will be:', `${API_URL}/otp/send`);
+console.log('🔍 VITE_API_URL value:', import.meta.env.VITE_API_URL || 'NOT SET');
 
 const api = axios.create({
   baseURL: API_URL,
