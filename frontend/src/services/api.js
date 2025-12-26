@@ -4,8 +4,9 @@ import axios from 'axios';
 // Default to localhost in development, production URL otherwise
 const getApiUrl = () => {
   // Check if VITE_API_URL is explicitly set (available at build time)
-  if (import.meta.env.VITE_API_URL) {
-    const url = import.meta.env.VITE_API_URL;
+  const viteApiUrl = import.meta.env.VITE_API_URL;
+  if (viteApiUrl && viteApiUrl.trim() !== '') {
+    const url = viteApiUrl.trim();
     // Ensure it ends with /api if not already included
     return url.endsWith('/api') ? url : (url.endsWith('/') ? `${url}api` : `${url}/api`);
   }
@@ -21,8 +22,17 @@ const getApiUrl = () => {
   
   // Production default - your Render backend host
   // Always use the backend URL in production (when not localhost)
+  // This ensures the frontend always connects to the correct backend
   const prodUrl = 'https://ego-store.onrender.com';
-  return prodUrl.endsWith('/api') ? prodUrl : `${prodUrl}/api`;
+  const apiUrl = prodUrl.endsWith('/api') ? prodUrl : `${prodUrl}/api`;
+  
+  // Log warning if VITE_API_URL is not set in production
+  if (!viteApiUrl) {
+    console.warn('⚠️ VITE_API_URL not set. Using default production URL:', apiUrl);
+    console.warn('💡 Set VITE_API_URL=https://ego-store.onrender.com in Render for better control');
+  }
+  
+  return apiUrl;
 };
 
 const API_URL = getApiUrl();
