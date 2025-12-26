@@ -128,8 +128,11 @@ app.get('/api/test', (req, res) => {
 });
 
 // Routes
+console.log('📋 Registering API routes...');
 app.use('/api/auth', require('./routes/authRoutes'));
+console.log('✅ Registered: /api/auth');
 app.use('/api/otp', require('./routes/otpRoutes'));
+console.log('✅ Registered: /api/otp');
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/sellers', require('./routes/sellerRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
