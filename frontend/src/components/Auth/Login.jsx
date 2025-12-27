@@ -18,7 +18,7 @@ import {
   FormHelperText,
 } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext.jsx';
-import { wakeUpBackend } from '../../services/api';
+
 
 const Login = () => {
   const [step, setStep] = useState('email'); // 'email' or 'otp'
@@ -36,13 +36,11 @@ const Login = () => {
       setLoading(true);
       setError('');
       
-      // If retrying, wake up backend first
+      // If retrying, previously woke up backend here. Now just set retrying state for UI feedback.
       if (retry) {
         setRetrying(true);
-        setError('Waking up backend... Please wait.');
-        await wakeUpBackend();
-        // Wait a bit more for backend to fully wake up
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        setError('Retrying... Please wait.');
+        await new Promise(resolve => setTimeout(resolve, 1000));
         setRetrying(false);
       }
       
