@@ -1,10 +1,24 @@
 const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 const config = require('./env');
 
-// Email configuration
-const createTransporter = () => {
+// Determine which email service to use
+const useSendGrid = !!process.env.SENDGRID_API_KEY;
+const useSMTP = !useSendGrid && config.email.user && config.email.pass;
+
+// Initialize SendGrid if API key is available
+if (useSendGrid) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  console.log('✅ SendGrid email service initialized');
+} else if (useSMTP) {
+  console.log('✅ SMTP email service will be used (fallback mode)');
+} else {
+  console.warn('⚠️  No email service configured. OTP codes will be logged to console.');
+}
+
+// SMTP transporter (fallback for local development)
+const createSMTPTransporter = () => {
   if (!config.email.user || !config.email.pass) {
-    console.warn('Email credentials not configured. Email functionality will be disabled.');
     return null;
   }
 
@@ -23,26 +37,26 @@ const createTransporter = () => {
     // Verify connection configuration
     transporter.verify((error) => {
       if (error) {
-        console.error('Error verifying email configuration:', error);
+        console.error('Error verifying SMTP configuration:', error);
       } else {
-        console.log('Email server is ready to send messages');
+        console.log('SMTP server is ready to send messages');
       }
     });
 
     return transporter;
   } catch (error) {
-    console.error('Failed to create email transporter:', error);
+    console.error('Failed to create SMTP transporter:', error);
     return null;
   }
 };
 
-let transporterInstance;
+let smtpTransporterInstance;
 
-const getTransporter = () => {
-  if (!transporterInstance) {
-    transporterInstance = createTransporter();
+const getSMTPTransporter = () => {
+  if (!smtpTransporterInstance) {
+    smtpTransporterInstance = createSMTPTransporter();
   }
-  return transporterInstance;
+  return smtpTransporterInstance;
 };
 
 // Utilities for safe rendering
@@ -447,11 +461,6 @@ const emailTemplates = {
 // Send email function with enhanced error handling
 const sendEmail = async (to, template, data = {}, options = {}) => {
   try {
-    const transporter = getTransporter();
-    if (!transporter) {
-      return { success: false, error: 'Email transporter not configured' };
-    }
-
     const buildTemplate = emailTemplates[template];
     if (!buildTemplate) {
       const error = `Unknown email template: ${template}`;
@@ -462,21 +471,71 @@ const sendEmail = async (to, template, data = {}, options = {}) => {
     const emailContent = buildTemplate(data);
     const { subject, from, ...mailOverrides } = options;
 
-    const mailOptions = {
-      from: from || config.email.user,
-      to,
-      subject: subject || emailContent.subject,
-      html: emailContent.html,
-      ...mailOverrides
-    };
+    const emailSubject = subject || emailContent.subject;
+    const emailHtml = emailContent.html;
+    const fromEmail = from || config.email.user || process.env.SENDGRID_FROM_EMAIL || 'noreply@example.com';
+    const fromName = process.env.SENDGRID_FROM_NAME || 'E-commerce Team';
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent successfully:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    // Use SendGrid if available (preferred for production/Render)
+    if (useSendGrid) {
+      try {
+        const msg = {
+          to,
+          from: {
+            email: fromEmail,
+            name: fromName
+          },
+          subject: emailSubject,
+          html: emailHtml,
+          ...mailOverrides
+        };
+
+        const response = await sgMail.send(msg);
+        console.log('✅ Email sent successfully via SendGrid:', response[0]?.headers?.['x-message-id'] || 'sent');
+        return { 
+          success: true, 
+          messageId: response[0]?.headers?.['x-message-id'] || 'sent',
+          provider: 'SendGrid'
+        };
+      } catch (sgError) {
+        console.error('❌ SendGrid email sending failed:', sgError.message);
+        // If SendGrid fails, fall back to SMTP if available
+        if (useSMTP) {
+          console.log('🔄 Falling back to SMTP...');
+        } else {
+          return { success: false, error: sgError.message, provider: 'SendGrid' };
+        }
+      }
+    }
+
+    // Fallback to SMTP (for local development)
+    if (useSMTP) {
+      const transporter = getSMTPTransporter();
+      if (!transporter) {
+        return { success: false, error: 'SMTP transporter not configured' };
+      }
+
+      const mailOptions = {
+        from: `"${fromName}" <${fromEmail}>`,
+        to,
+        subject: emailSubject,
+        html: emailHtml,
+        ...mailOverrides
+      };
+
+      const info = await transporter.sendMail(mailOptions);
+      console.log('✅ Email sent successfully via SMTP:', info.messageId);
+      return { success: true, messageId: info.messageId, provider: 'SMTP' };
+    }
+
+    // No email service configured - return error
+    return { success: false, error: 'No email service configured (SendGrid or SMTP)' };
 
   } catch (error) {
-    console.error('Email sending failed:', error);
-    transporterInstance = null; // Reset transporter so next call can attempt to re-create it
+    console.error('❌ Email sending failed:', error);
+    if (useSMTP) {
+      smtpTransporterInstance = null; // Reset transporter so next call can attempt to re-create it
+    }
     return { success: false, error: error.message };
   }
 };
@@ -484,11 +543,6 @@ const sendEmail = async (to, template, data = {}, options = {}) => {
 // Bulk email function for newsletters
 const sendBulkEmail = async (recipients, template, data = {}, options = {}) => {
   try {
-    const transporter = getTransporter();
-    if (!transporter) {
-      return { success: false, error: 'Email transporter not configured' };
-    }
-
     const buildTemplate = emailTemplates[template];
     if (!buildTemplate) {
       const error = `Unknown email template: ${template}`;
@@ -498,30 +552,71 @@ const sendBulkEmail = async (recipients, template, data = {}, options = {}) => {
 
     const emailContent = buildTemplate(data);
     const { subject, from, delayMs = 1000, ...mailOverrides } = options;
+    const fromEmail = from || config.email.user || process.env.SENDGRID_FROM_EMAIL || 'noreply@example.com';
+    const fromName = process.env.SENDGRID_FROM_NAME || 'E-commerce Team';
 
     const results = [];
 
-    for (const recipient of recipients) {
-      try {
-        const mailOptions = {
-          from: from || config.email.user,
-          to: recipient.email,
-          subject: subject || emailContent.subject,
-          html: emailContent.html,
-          ...mailOverrides
-        };
+    // Use SendGrid for bulk emails if available
+    if (useSendGrid) {
+      for (const recipient of recipients) {
+        try {
+          const msg = {
+            to: recipient.email,
+            from: {
+              email: fromEmail,
+              name: fromName
+            },
+            subject: subject || emailContent.subject,
+            html: emailContent.html,
+            ...mailOverrides
+          };
 
-        const info = await transporter.sendMail(mailOptions);
-        results.push({ email: recipient.email, success: true, messageId: info.messageId });
+          const response = await sgMail.send(msg);
+          results.push({ 
+            email: recipient.email, 
+            success: true, 
+            messageId: response[0]?.headers?.['x-message-id'] || 'sent' 
+          });
 
-        if (delayMs) {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
+          if (delayMs) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
+        } catch (error) {
+          console.error(`Failed to send email to ${recipient.email}:`, error.message);
+          results.push({ email: recipient.email, success: false, error: error.message });
         }
-
-      } catch (error) {
-        console.error(`Failed to send email to ${recipient.email}:`, error.message);
-        results.push({ email: recipient.email, success: false, error: error.message });
       }
+    } else if (useSMTP) {
+      // Fallback to SMTP
+      const transporter = getSMTPTransporter();
+      if (!transporter) {
+        return { success: false, error: 'SMTP transporter not configured' };
+      }
+
+      for (const recipient of recipients) {
+        try {
+          const mailOptions = {
+            from: `"${fromName}" <${fromEmail}>`,
+            to: recipient.email,
+            subject: subject || emailContent.subject,
+            html: emailContent.html,
+            ...mailOverrides
+          };
+
+          const info = await transporter.sendMail(mailOptions);
+          results.push({ email: recipient.email, success: true, messageId: info.messageId });
+
+          if (delayMs) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
+        } catch (error) {
+          console.error(`Failed to send email to ${recipient.email}:`, error.message);
+          results.push({ email: recipient.email, success: false, error: error.message });
+        }
+      }
+    } else {
+      return { success: false, error: 'No email service configured (SendGrid or SMTP)' };
     }
 
     const successCount = results.filter(r => r.success).length;
@@ -536,7 +631,9 @@ const sendBulkEmail = async (recipients, template, data = {}, options = {}) => {
 
   } catch (error) {
     console.error('Bulk email sending failed:', error);
-    transporterInstance = null;
+    if (useSMTP) {
+      smtpTransporterInstance = null;
+    }
     return { success: false, error: error.message };
   }
 };

@@ -228,13 +228,28 @@ const PORT = process.env.PORT || 5000;
 // Connect to database and start server
 const startServer = async () => {
   try {
+    console.log('🔄 Connecting to MongoDB...');
     await connectDB();
-    app.listen(PORT, () => {
-      console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-      console.log(`Server is listening on http://localhost:${PORT}`);
+    
+    // Listen on 0.0.0.0 to allow external connections (required for Render)
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log('='.repeat(50));
+      console.log('✅ Server started successfully!');
+      console.log('='.repeat(50));
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`Port: ${PORT}`);
+      console.log(`Server URL: http://0.0.0.0:${PORT}`);
+      console.log(`Health check: http://0.0.0.0:${PORT}/health`);
+      console.log(`API test: http://0.0.0.0:${PORT}/api/test`);
+      console.log(`OTP test: http://0.0.0.0:${PORT}/api/otp/test`);
+      console.log('='.repeat(50));
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    console.error('❌ Failed to start server:', error);
+    console.error('Error details:', error.message);
+    if (error.stack) {
+      console.error('Stack trace:', error.stack);
+    }
     process.exit(1);
   }
 };

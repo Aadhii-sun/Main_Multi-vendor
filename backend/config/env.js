@@ -51,15 +51,25 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-// Email is optional - warn if missing but don't exit
-if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-  console.warn('⚠️  Email credentials not configured. OTP will be logged to console in development mode.');
+// Email configuration check
+const hasSendGrid = !!process.env.SENDGRID_API_KEY;
+const hasSMTP = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+
+if (!hasSendGrid && !hasSMTP) {
+  console.warn('⚠️  Email service not configured. OTP will be logged to console.');
+  console.warn('   Configure either SENDGRID_API_KEY (recommended for Render) or EMAIL_USER/EMAIL_PASS');
 }
 
 console.log('✅ Environment variables loaded successfully');
 console.log('Environment:', process.env.NODE_ENV || 'development');
+console.log('PORT:', process.env.PORT || '5000 (default)');
 console.log('MongoDB URI:', process.env.MONGO_URI ? 'Configured' : 'Missing');
-console.log('Email User:', process.env.EMAIL_USER ? 'Configured' : 'Missing');
+console.log('JWT Secret:', process.env.JWT_SECRET ? 'Configured' : 'Missing');
+console.log('Email Service:', hasSendGrid ? 'SendGrid (API)' : hasSMTP ? 'SMTP (Gmail)' : 'Not configured');
+console.log('SendGrid API Key:', hasSendGrid ? 'Configured' : 'Missing');
+console.log('SMTP Credentials:', hasSMTP ? 'Configured' : 'Missing');
+console.log('Stripe Key:', process.env.STRIPE_SECRET_KEY ? 'Configured' : 'Missing');
+console.log('Client URL:', process.env.CLIENT_URL || 'Not set');
 
 module.exports = {
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -69,6 +79,11 @@ module.exports = {
   email: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
+  },
+  sendgrid: {
+    apiKey: process.env.SENDGRID_API_KEY,
+    fromEmail: process.env.SENDGRID_FROM_EMAIL,
+    fromName: process.env.SENDGRID_FROM_NAME
   },
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY

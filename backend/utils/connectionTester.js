@@ -98,10 +98,45 @@ class ConnectionTester {
     try {
       console.log('🔄 Testing Email service connection...');
 
+      // Check for SendGrid first (recommended for Render)
+      if (process.env.SENDGRID_API_KEY) {
+        try {
+          const sgMail = require('@sendgrid/mail');
+          sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+          
+          // Test by checking API key format (SendGrid doesn't have a verify method)
+          // We'll just check if the key is set and properly formatted
+          if (process.env.SENDGRID_API_KEY.startsWith('SG.')) {
+            this.results.email = {
+              status: 'success',
+              message: 'SendGrid API key configured (recommended for Render)',
+              details: {
+                service: 'SendGrid',
+                fromEmail: process.env.SENDGRID_FROM_EMAIL || 'Not set',
+                fromName: process.env.SENDGRID_FROM_NAME || 'Not set'
+              }
+            };
+            console.log('✅ Email: SendGrid configured');
+            return;
+          } else {
+            throw new Error('Invalid SendGrid API key format');
+          }
+        } catch (error) {
+          this.results.email = {
+            status: 'error',
+            message: `SendGrid configuration error: ${error.message}`,
+            details: {}
+          };
+          console.log('❌ Email: SendGrid configuration failed');
+          return;
+        }
+      }
+
+      // Fallback to SMTP (for local development)
       if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
         this.results.email = {
           status: 'error',
-          message: 'Email credentials not configured (EMAIL_USER, EMAIL_PASS)',
+          message: 'No email service configured. Set SENDGRID_API_KEY (recommended) or EMAIL_USER/EMAIL_PASS',
           details: {}
         };
         return;
@@ -136,20 +171,22 @@ class ConnectionTester {
 
       this.results.email = {
         status: 'success',
-        message: 'Email service connection successful',
+        message: 'SMTP email service connection successful (Note: May not work on Render free tier)',
         details: {
-          service: process.env.EMAIL_USER.includes('gmail.com') ? 'Gmail' : 'Custom SMTP',
+          service: process.env.EMAIL_USER.includes('gmail.com') ? 'Gmail SMTP' : 'Custom SMTP',
           user: process.env.EMAIL_USER,
           host: process.env.SMTP_HOST || 'smtp.gmail.com'
         }
       };
 
-      console.log('✅ Email: Connected successfully');
+      console.log('✅ Email: SMTP connected successfully');
     } catch (error) {
       this.results.email = {
         status: 'error',
         message: `Email connection failed: ${error.message}`,
-        details: {}
+        details: {
+          note: 'For Render deployment, use SendGrid instead of SMTP'
+        }
       };
       console.log('❌ Email: Connection failed');
     }
