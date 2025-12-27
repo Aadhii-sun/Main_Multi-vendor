@@ -2,8 +2,9 @@
 
 import axios from 'axios';
 
-// Use a single environment variable for backend host
-const API_URL = (import.meta.env.VITE_API_URL || 'https://ego-store-backend.onrender.com').replace(/\/$/, '');
+// Use the correct environment variable for backend host, fallback to Render backend, and ensure /api is appended
+const base = import.meta.env.VITE_API_BASE_URL || 'https://ego-store-backend.onrender.com';
+const API_URL = base.endsWith('/api') ? base : `${base.replace(/\/$/, '')}/api`;
 
 const api = axios.create({
   baseURL: API_URL,
