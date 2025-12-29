@@ -105,7 +105,17 @@ app.use(cors({
 }));
 
 // Handle preflight OPTIONS requests explicitly (before other routes)
-app.options('*', cors()); // Enable CORS preflight for all routes
+// CORS middleware already handles OPTIONS, but we add explicit handler for all API routes
+app.use('/api', (req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 // Stripe webhook endpoint (must be before JSON middleware)
 // This route needs raw body, not parsed JSON
