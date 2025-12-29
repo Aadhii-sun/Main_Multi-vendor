@@ -76,75 +76,16 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration - MUST be before routes
-const allowedOrigins = [
-  config.clientUrl,
-  process.env.CLIENT_URL,
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:3000',
-  'http://localhost:5174',
-  'http://127.0.0.1:5174',
-  'https://ego-store-frontend.onrender.com', // Production frontend - EXPLICITLY ADDED
-  'https://ego-store-frontend.onrender.com/', // With trailing slash
-  'http://ego-store-frontend.onrender.com', // HTTP variant (shouldn't happen but just in case)
-].filter(Boolean);
+const { corsConfig, getAllowedOrigins, logCorsConfig } = require('./config/cors');
 
-// Remove duplicates and empty values, normalize URLs (remove trailing slashes)
-const uniqueOrigins = [...new Set(allowedOrigins.map(url => url ? url.replace(/\/$/, '') : null).filter(Boolean))];
-
-logger.info('🌐 CORS Configuration:', {
-  environment: config.nodeEnv,
-  allowedOrigins: uniqueOrigins
-});
+// Log CORS configuration on startup
+logCorsConfig();
 
 // CORS middleware - works for both development and production
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, or curl requests)
-    if (!origin) {
-      logger.debug('CORS: Allowing request with no origin');
-      return callback(null, true);
-    }
-    
-    // Normalize origin (remove trailing slash and protocol variations)
-    const normalizedOrigin = origin.replace(/\/$/, '').toLowerCase();
-    
-    // Normalize allowed origins for comparison
-    const normalizedAllowed = uniqueOrigins.map(url => url.toLowerCase());
-    
-    // Check if origin is in allowed list (case-insensitive)
-    if (normalizedAllowed.includes(normalizedOrigin)) {
-      logger.debug(`CORS: Allowing origin: ${origin}`);
-      return callback(null, true);
-    }
-    
-    // In development, allow all localhost origins
-    if (config.nodeEnv === 'development' && (normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1'))) {
-      logger.debug(`CORS: Allowing localhost origin: ${origin}`);
-      return callback(null, true);
-    }
-    
-    // In production, be more permissive for Render.com domains
-    if (config.nodeEnv === 'production' && normalizedOrigin.includes('onrender.com')) {
-      logger.debug(`CORS: Allowing Render.com origin: ${origin}`);
-      return callback(null, true);
-    }
-    
-    // Log blocked origin for debugging
-    logger.warn(`CORS: Blocking origin: ${origin}`, {
-      normalized: normalizedOrigin,
-      allowedOrigins: uniqueOrigins,
-      clientUrl: process.env.CLIENT_URL || 'NOT SET'
-    });
-    callback(new Error(`CORS blocked for origin: ${origin}. Allowed: ${uniqueOrigins.join(', ')}`));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-}));
+app.use(cors(corsConfig));
+
+// Store uniqueOrigins for use in other endpoints (like /api/test)
+const uniqueOrigins = getAllowedOrigins();
 
 // Handle preflight OPTIONS requests explicitly (before other routes)
 // CORS middleware already handles OPTIONS, but we add explicit handler for all API routes
