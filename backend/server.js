@@ -16,7 +16,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-const mongoSanitize = require('express-mongo-sanitize');
+const sanitizeMiddleware = require('./middleware/sanitizeMiddleware');
 const path = require('path');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorMiddleware');
@@ -64,8 +64,8 @@ app.use(helmet({
   }
 }));
 
-// Data sanitization against NoSQL injection
-app.use(mongoSanitize());
+// Data sanitization against NoSQL injection (custom middleware for Express 5 compatibility)
+app.use(sanitizeMiddleware);
 
 // Rate limiting
 const limiter = rateLimit({
