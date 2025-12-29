@@ -44,7 +44,9 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5174',
   'http://127.0.0.1:5174',
-  'https://ego-store-frontend.onrender.com' // Production frontend - EXPLICITLY ADDED
+  'https://ego-store-frontend.onrender.com', // Production frontend - EXPLICITLY ADDED
+  'https://ego-store-frontend.onrender.com/', // With trailing slash
+  'http://ego-store-frontend.onrender.com', // HTTP variant (shouldn't happen but just in case)
 ].filter(Boolean);
 
 // Remove duplicates and empty values, normalize URLs (remove trailing slashes)
@@ -63,32 +65,47 @@ app.use(cors({
       return callback(null, true);
     }
     
-    // Normalize origin (remove trailing slash)
-    const normalizedOrigin = origin.replace(/\/$/, '');
+    // Normalize origin (remove trailing slash and protocol variations)
+    const normalizedOrigin = origin.replace(/\/$/, '').toLowerCase();
     
-    // Check if origin is in allowed list
-    if (uniqueOrigins.includes(normalizedOrigin)) {
-      console.log(`✅ CORS: Allowing origin: ${normalizedOrigin}`);
+    // Normalize allowed origins for comparison
+    const normalizedAllowed = uniqueOrigins.map(url => url.toLowerCase());
+    
+    // Check if origin is in allowed list (case-insensitive)
+    if (normalizedAllowed.includes(normalizedOrigin)) {
+      console.log(`✅ CORS: Allowing origin: ${origin}`);
       return callback(null, true);
     }
     
     // In development, allow all localhost origins
     if (config.nodeEnv === 'development' && (normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1'))) {
-      console.log(`✅ CORS: Allowing localhost origin: ${normalizedOrigin}`);
+      console.log(`✅ CORS: Allowing localhost origin: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // In production, be more permissive for Render.com domains
+    if (config.nodeEnv === 'production' && normalizedOrigin.includes('onrender.com')) {
+      console.log(`✅ CORS: Allowing Render.com origin: ${origin}`);
       return callback(null, true);
     }
     
     // Log blocked origin for debugging
-    console.log(`❌ CORS: Blocking origin: ${normalizedOrigin}`);
+    console.log(`❌ CORS: Blocking origin: ${origin}`);
+    console.log(`   Normalized: ${normalizedOrigin}`);
     console.log(`   Allowed origins: ${uniqueOrigins.join(', ')}`);
     console.log(`   CLIENT_URL env var: ${process.env.CLIENT_URL || 'NOT SET'}`);
-    callback(new Error(`CORS blocked for origin: ${normalizedOrigin}. Allowed: ${uniqueOrigins.join(', ')}`));
+    callback(new Error(`CORS blocked for origin: ${origin}. Allowed: ${uniqueOrigins.join(', ')}`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
+
+// Handle preflight OPTIONS requests explicitly (before other routes)
+app.options('*', cors()); // Enable CORS preflight for all routes
 
 // Stripe webhook endpoint (must be before JSON middleware)
 // This route needs raw body, not parsed JSON
@@ -135,7 +152,21 @@ app.get('/api/test', (req, res) => {
     message: 'API is working!',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
-    clientUrl: process.env.CLIENT_URL
+    clientUrl: process.env.CLIENT_URL,
+    cors: {
+      allowedOrigins: uniqueOrigins,
+      origin: req.headers.origin || 'no origin header'
+    }
+  });
+});
+
+// CORS test endpoint
+app.get('/api/cors-test', (req, res) => {
+  res.json({
+    message: 'CORS test successful',
+    origin: req.headers.origin || 'no origin header',
+    allowedOrigins: uniqueOrigins,
+    timestamp: new Date().toISOString()
   });
 });
 
