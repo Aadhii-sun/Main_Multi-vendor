@@ -71,10 +71,14 @@ console.log('SMTP Credentials:', hasSMTP ? 'Configured' : 'Missing');
 console.log('Stripe Key:', process.env.STRIPE_SECRET_KEY ? 'Configured' : 'Missing');
 console.log('Client URL:', process.env.CLIENT_URL || 'Not set');
 
+// Load centralized backend host configuration
+const { BACKEND_CONFIG } = require('./backendHost');
+
 module.exports = {
-  nodeEnv: process.env.NODE_ENV || 'development',
-  port: process.env.PORT || 5000,
-  mongoUri: process.env.MONGO_URI,
+  // Use centralized backend host configuration
+  nodeEnv: BACKEND_CONFIG.server.nodeEnv,
+  port: BACKEND_CONFIG.server.port,
+  mongoUri: BACKEND_CONFIG.database.uri,
   jwtSecret: process.env.JWT_SECRET,
   email: {
     user: process.env.EMAIL_USER,
@@ -86,16 +90,19 @@ module.exports = {
     fromName: process.env.SENDGRID_FROM_NAME
   },
   stripe: {
-    secretKey: process.env.STRIPE_SECRET_KEY
+    secretKey: BACKEND_CONFIG.services.stripe.secretKey,
+    webhookSecret: BACKEND_CONFIG.services.stripe.webhookSecret
   },
-  clientUrl: process.env.CLIENT_URL,
+  clientUrl: BACKEND_CONFIG.frontend,
+  backendUrl: BACKEND_CONFIG.host,
+  apiUrl: BACKEND_CONFIG.apiUrl,
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET
   },
   cloudinary: {
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'dkq9qo8vf',
-    apiKey: process.env.CLOUDINARY_API_KEY || '799582919956526',
-    apiSecret: process.env.CLOUDINARY_API_SECRET
+    cloudName: BACKEND_CONFIG.services.cloudinary.cloudName,
+    apiKey: BACKEND_CONFIG.services.cloudinary.apiKey,
+    apiSecret: BACKEND_CONFIG.services.cloudinary.apiSecret
   }
 };

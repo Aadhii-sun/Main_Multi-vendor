@@ -23,7 +23,10 @@ const errorHandler = require('./middleware/errorMiddleware');
 const requestIdMiddleware = require('./middleware/requestId');
 const Stripe = require("stripe");
 
+const { printConfig } = require('./config/backendHost');
+
 logger.info('✅ Environment configuration loaded');
+printConfig(); // Print centralized backend configuration
 logger.info('Starting server...');
 logger.info(`Environment: ${config.nodeEnv}`);
 logger.info(`MongoDB URI: ${config.mongoUri ? 'Configured' : 'Missing'}`);

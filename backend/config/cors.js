@@ -5,14 +5,17 @@
 
 const logger = require('./logger');
 const config = require('./env');
+const { BACKEND_CONFIG } = require('./backendHost');
 
 /**
  * Get allowed origins based on environment
  */
 const getAllowedOrigins = () => {
   const allowedOrigins = [
+    BACKEND_CONFIG.frontend, // Use centralized config
     config.clientUrl,
     process.env.CLIENT_URL,
+    process.env.FRONTEND_URL,
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:3000',
