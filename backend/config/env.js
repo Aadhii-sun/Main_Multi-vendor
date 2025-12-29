@@ -92,5 +92,10 @@ module.exports = {
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET
+  },
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'dkq9qo8vf',
+    apiKey: process.env.CLOUDINARY_API_KEY || '799582919956526',
+    apiSecret: process.env.CLOUDINARY_API_SECRET
   }
 };

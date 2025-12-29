@@ -355,15 +355,18 @@ const Login = () => {
         )}
 
         {step === 'email' ? (
-          <form onSubmit={emailForm.handleSubmit}>
+          <form onSubmit={emailForm.handleSubmit} autoComplete="on">
             <FormControl fullWidth margin="normal" variant="filled">
-              <InputLabel id="user-type-label">Login As</InputLabel>
+              <InputLabel id="user-type-label" htmlFor="userType">Login As</InputLabel>
               <Select
                 labelId="user-type-label"
                 id="userType"
                 name="userType"
                 value={emailForm.values.userType}
                 label="Login As"
+                inputProps={{
+                  'aria-label': 'Select user type',
+                }}
                 onChange={(e) => {
                   emailForm.handleChange(e);
                   setStep('email'); // Reset to email step when changing user type
@@ -403,6 +406,7 @@ const Login = () => {
               name="email"
               label="Email"
               type="email"
+              autoComplete="email"
               margin="normal"
               variant="filled"
               value={emailForm.values.email}
@@ -410,6 +414,9 @@ const Login = () => {
               onBlur={emailForm.handleBlur}
               error={emailForm.touched.email && Boolean(emailForm.errors.email)}
               helperText={emailForm.touched.email && emailForm.errors.email}
+              inputProps={{
+                'aria-label': 'Email address',
+              }}
               sx={{
                 '& .MuiFilledInput-root': {
                   backgroundColor: '#ffffff',
@@ -445,6 +452,7 @@ const Login = () => {
                   name="password"
                   label="Password (Optional - Leave empty for OTP login)"
                   type="password"
+                  autoComplete="current-password"
                   margin="normal"
                   variant="filled"
                   value={emailForm.values.password}
@@ -452,6 +460,9 @@ const Login = () => {
                   onBlur={emailForm.handleBlur}
                   error={emailForm.touched.password && Boolean(emailForm.errors.password)}
                   helperText={emailForm.touched.password ? emailForm.errors.password : 'Leave empty to use OTP login'}
+                  inputProps={{
+                    'aria-label': 'Password',
+                  }}
                   sx={{
                     '& .MuiFilledInput-root': {
                       backgroundColor: '#ffffff',
@@ -534,7 +545,7 @@ const Login = () => {
             </Box>
           </form>
         ) : (
-          <form onSubmit={otpForm.handleSubmit}>
+          <form onSubmit={otpForm.handleSubmit} autoComplete="on">
             <Alert 
               severity="info" 
               sx={{ 
@@ -556,6 +567,7 @@ const Login = () => {
               name="otp"
               label="Enter 6-digit OTP"
               type="text"
+              autoComplete="one-time-code"
               margin="normal"
               variant="filled"
               value={otpForm.values.otp}
@@ -563,7 +575,12 @@ const Login = () => {
               onBlur={otpForm.handleBlur}
               error={otpForm.touched.otp && Boolean(otpForm.errors.otp)}
               helperText={otpForm.touched.otp && otpForm.errors.otp}
-              inputProps={{ maxLength: 6 }}
+              inputProps={{ 
+                maxLength: 6,
+                'aria-label': 'One-time password code',
+                inputMode: 'numeric',
+                pattern: '[0-9]*'
+              }}
               sx={{
                 '& .MuiFilledInput-root': {
                   backgroundColor: '#ffffff',

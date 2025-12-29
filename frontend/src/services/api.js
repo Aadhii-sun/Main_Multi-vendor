@@ -2,6 +2,9 @@
 
 import axios from 'axios';
 
+// Cloudinary configuration
+export const CLOUDINARY_CLOUD_NAME = 'dkq9qo8vf';
+
 // Use the correct environment variable for backend host, fallback to Render backend, and ensure /api is appended
 const base = import.meta.env.VITE_API_BASE_URL || 'https://ego-store-backend.onrender.com';
 const API_URL = base.endsWith('/api') ? base : `${base.replace(/\/$/, '')}/api`;

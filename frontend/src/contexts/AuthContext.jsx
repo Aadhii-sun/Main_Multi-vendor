@@ -53,7 +53,14 @@ export const AuthProvider = ({ children }) => {
       console.log('Token Verify - User role from API:', user?.role);
       console.log('Token Verify - Full user object:', user);
     } catch (error) {
-      console.error('Token verification failed:', error);
+      // Only log error if it's not a 401 (unauthorized) - 401 means token is invalid/expired, which is expected
+      if (error.response?.status !== 401) {
+        console.error('Token verification failed:', error);
+      } else {
+        // Silently clear invalid token - this is expected behavior
+        console.log('Token expired or invalid, clearing auth data');
+      }
+      // Clear invalid token and user data
       logout();
     } finally {
       setLoading(false);
