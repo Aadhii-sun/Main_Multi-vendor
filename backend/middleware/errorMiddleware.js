@@ -1,9 +1,23 @@
+const logger = require('../config/logger');
+
 const errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
-  // Log error
-  console.error(err);
+  // Log error with request context
+  logger.error('Error occurred', {
+    requestId: req.id,
+    method: req.method,
+    path: req.path,
+    error: {
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+      code: err.code
+    },
+    user: req.user ? req.user._id : 'anonymous',
+    ip: req.ip
+  });
 
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {
@@ -34,14 +48,29 @@ const errorHandler = (err, req, res, next) => {
     error = { message, statusCode: 401 };
   }
 
+  // CORS errors
+  if (err.message && err.message.includes('CORS')) {
+    error = { message: err.message, statusCode: 403 };
+  }
+
   const statusCode = error.statusCode || res.statusCode || 500;
   const message = error.message || 'Server Error';
 
-  res.status(statusCode).json({
+  // Don't expose stack trace in production
+  const response = {
     success: false,
     message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-  });
+    requestId: req.id,
+    ...(process.env.NODE_ENV === 'development' && { 
+      stack: err.stack,
+      error: {
+        name: err.name,
+        code: err.code
+      }
+    })
+  };
+
+  res.status(statusCode).json(response);
 };
 
 module.exports = errorHandler;

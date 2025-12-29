@@ -1,31 +1,71 @@
 // Load environment configuration first
 const config = require('./config/env');
+const logger = require('./config/logger');
+const validateEnv = require('./config/validateEnv');
+
+// Validate environment variables
+try {
+  validateEnv();
+} catch (error) {
+  logger.error('Environment validation failed:', error);
+  process.exit(1);
+}
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
 const path = require('path');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorMiddleware');
+const requestIdMiddleware = require('./middleware/requestId');
 const Stripe = require("stripe");
 
-console.log('✅ Environment configuration loaded');
-console.log('Starting server...');
-console.log('Environment:', config.nodeEnv);
-console.log('MongoDB URI:', config.mongoUri ? 'Configured' : 'Missing');
-console.log('Email User:', config.email.user ? 'Configured' : 'Missing');
+logger.info('✅ Environment configuration loaded');
+logger.info('Starting server...');
+logger.info(`Environment: ${config.nodeEnv}`);
+logger.info(`MongoDB URI: ${config.mongoUri ? 'Configured' : 'Missing'}`);
+logger.info(`Email User: ${config.email.user ? 'Configured' : 'Missing'}`);
 
 const app = express();
 
 // Trust proxy - required for Render and rate limiting
 app.set('trust proxy', 1);
 
-// Security middleware - configure helmet to work with CORS
+// Request ID middleware (must be first)
+app.use(requestIdMiddleware);
+
+// Response compression
+app.use(compression());
+
+// Security middleware - configure helmet with enhanced security
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
 }));
+
+// Data sanitization against NoSQL injection
+app.use(mongoSanitize());
 
 // Rate limiting
 const limiter = rateLimit({
@@ -52,16 +92,17 @@ const allowedOrigins = [
 // Remove duplicates and empty values, normalize URLs (remove trailing slashes)
 const uniqueOrigins = [...new Set(allowedOrigins.map(url => url ? url.replace(/\/$/, '') : null).filter(Boolean))];
 
-console.log('🌐 CORS Configuration:');
-console.log('   Environment:', config.nodeEnv);
-console.log('   Allowed origins:', uniqueOrigins);
+logger.info('🌐 CORS Configuration:', {
+  environment: config.nodeEnv,
+  allowedOrigins: uniqueOrigins
+});
 
 // CORS middleware - works for both development and production
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, Postman, or curl requests)
     if (!origin) {
-      console.log('✅ CORS: Allowing request with no origin');
+      logger.debug('CORS: Allowing request with no origin');
       return callback(null, true);
     }
     
@@ -73,27 +114,28 @@ app.use(cors({
     
     // Check if origin is in allowed list (case-insensitive)
     if (normalizedAllowed.includes(normalizedOrigin)) {
-      console.log(`✅ CORS: Allowing origin: ${origin}`);
+      logger.debug(`CORS: Allowing origin: ${origin}`);
       return callback(null, true);
     }
     
     // In development, allow all localhost origins
     if (config.nodeEnv === 'development' && (normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1'))) {
-      console.log(`✅ CORS: Allowing localhost origin: ${origin}`);
+      logger.debug(`CORS: Allowing localhost origin: ${origin}`);
       return callback(null, true);
     }
     
     // In production, be more permissive for Render.com domains
     if (config.nodeEnv === 'production' && normalizedOrigin.includes('onrender.com')) {
-      console.log(`✅ CORS: Allowing Render.com origin: ${origin}`);
+      logger.debug(`CORS: Allowing Render.com origin: ${origin}`);
       return callback(null, true);
     }
     
     // Log blocked origin for debugging
-    console.log(`❌ CORS: Blocking origin: ${origin}`);
-    console.log(`   Normalized: ${normalizedOrigin}`);
-    console.log(`   Allowed origins: ${uniqueOrigins.join(', ')}`);
-    console.log(`   CLIENT_URL env var: ${process.env.CLIENT_URL || 'NOT SET'}`);
+    logger.warn(`CORS: Blocking origin: ${origin}`, {
+      normalized: normalizedOrigin,
+      allowedOrigins: uniqueOrigins,
+      clientUrl: process.env.CLIENT_URL || 'NOT SET'
+    });
     callback(new Error(`CORS blocked for origin: ${origin}. Allowed: ${uniqueOrigins.join(', ')}`));
   },
   credentials: true,
@@ -125,35 +167,83 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), req
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging middleware (for debugging)
+// Request logging middleware (for debugging) - removed, now handled by timing middleware
+
+// HTTP request logging with Morgan
+if (process.env.NODE_ENV === 'development') {
+  app.use(morgan('dev', { stream: logger.stream }));
+} else {
+  app.use(morgan('combined', { stream: logger.stream }));
+}
+
+// Request timing middleware
 app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    console.log(`📥 ${req.method} ${req.path}`, {
-      query: req.query,
-      bodyKeys: req.body ? Object.keys(req.body) : [],
-      contentType: req.headers['content-type']
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    logger.info(`${req.method} ${req.path}`, {
+      requestId: req.id,
+      statusCode: res.statusCode,
+      duration: `${duration}ms`,
+      ip: req.ip,
+      userAgent: req.get('user-agent')
     });
-  }
+  });
   next();
 });
-
-// Logging middleware
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
 
 // Initialize Stripe (only if key is available)
 const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
+// Enhanced health check endpoint
+app.get('/health', async (req, res) => {
+  const health = {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
-    version: '1.0.0'
-  });
+    version: '1.0.0',
+    services: {
+      database: 'unknown',
+      stripe: 'unknown',
+      email: 'unknown',
+      cloudinary: 'unknown'
+    }
+  };
+
+  try {
+    // Check MongoDB connection
+    const mongoose = require('mongoose');
+    health.services.database = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    
+    // Check Stripe
+    health.services.stripe = process.env.STRIPE_SECRET_KEY ? 'configured' : 'not_configured';
+    
+    // Check Email
+    health.services.email = (process.env.SENDGRID_API_KEY || (process.env.EMAIL_USER && process.env.EMAIL_PASS)) 
+      ? 'configured' 
+      : 'not_configured';
+    
+    // Check Cloudinary
+    health.services.cloudinary = process.env.CLOUDINARY_API_SECRET ? 'configured' : 'not_configured';
+    
+    // Overall health status
+    const allServicesHealthy = Object.values(health.services).every(
+      status => status === 'connected' || status === 'configured'
+    );
+    
+    if (!allServicesHealthy && health.services.database !== 'connected') {
+      health.status = 'degraded';
+      return res.status(503).json(health);
+    }
+    
+    res.json(health);
+  } catch (error) {
+    logger.error('Health check error:', error);
+    health.status = 'unhealthy';
+    health.error = error.message;
+    res.status(503).json(health);
+  }
 });
 
 // Test endpoint to verify API routing
@@ -208,27 +298,19 @@ app.get('/api/routes', (req, res) => {
 });
 
 // Routes
-console.log('📋 Registering API routes...');
+logger.info('📋 Registering API routes...');
 app.use('/api/auth', require('./routes/authRoutes'));
-console.log('✅ Registered: /api/auth');
+logger.info('✅ Registered: /api/auth');
 
 // OTP routes - verify mounting
 try {
   const otpRoutes = require('./routes/otpRoutes');
-  console.log('📦 OTP routes module loaded:', typeof otpRoutes);
+  logger.debug('OTP routes module loaded:', { type: typeof otpRoutes });
   app.use('/api/otp', otpRoutes);
-  console.log('✅ Registered: /api/otp');
-  console.log('✅ OTP routes mounted successfully');
-  // Log all registered OTP routes
-  if (otpRoutes && otpRoutes.stack) {
-    console.log('📋 OTP route stack:', otpRoutes.stack.map(layer => ({
-      path: layer.route?.path,
-      method: layer.route?.methods
-    })));
-  }
+  logger.info('✅ Registered: /api/otp');
+  logger.info('✅ OTP routes mounted successfully');
 } catch (error) {
-  console.error('❌ ERROR: Failed to load OTP routes:', error);
-  console.error('❌ Error stack:', error.stack);
+  logger.error('❌ ERROR: Failed to load OTP routes:', error);
   throw error;
 }
 app.use('/api/users', require('./routes/userRoutes'));
@@ -274,23 +356,20 @@ const startServer = async () => {
     
     // Listen on 0.0.0.0 to allow external connections (required for Render)
     app.listen(PORT, '0.0.0.0', () => {
-      console.log('='.repeat(50));
-      console.log('✅ Server started successfully!');
-      console.log('='.repeat(50));
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`Port: ${PORT}`);
-      console.log(`Server URL: http://0.0.0.0:${PORT}`);
-      console.log(`Health check: http://0.0.0.0:${PORT}/health`);
-      console.log(`API test: http://0.0.0.0:${PORT}/api/test`);
-      console.log(`OTP test: http://0.0.0.0:${PORT}/api/otp/test`);
-      console.log('='.repeat(50));
+      logger.info('='.repeat(50));
+      logger.info('✅ Server started successfully!');
+      logger.info('='.repeat(50));
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Port: ${PORT}`);
+      logger.info(`Server URL: http://0.0.0.0:${PORT}`);
+      logger.info(`Health check: http://0.0.0.0:${PORT}/health`);
+      logger.info(`API test: http://0.0.0.0:${PORT}/api/test`);
+      logger.info(`OTP test: http://0.0.0.0:${PORT}/api/otp/test`);
+      logger.info('='.repeat(50));
     });
   } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    console.error('Error details:', error.message);
-    if (error.stack) {
-      console.error('Stack trace:', error.stack);
-    }
+    logger.error('❌ Failed to start server:', error);
+    logger.error('Error details:', { message: error.message, stack: error.stack });
     process.exit(1);
   }
 };
