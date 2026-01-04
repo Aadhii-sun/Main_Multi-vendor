@@ -1,3 +1,16 @@
+// Add global error handlers to catch unhandled errors
+process.on('uncaughtException', (error) => {
+  console.error('❌ UNCAUGHT EXCEPTION:', error);
+  console.error('Stack:', error.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ UNHANDLED REJECTION at:', promise);
+  console.error('Reason:', reason);
+  process.exit(1);
+});
+
 // Load environment configuration first
 const config = require('./config/env');
 const logger = require('./config/logger');
@@ -298,17 +311,21 @@ const startServer = async () => {
     console.log('🔄 Connecting to MongoDB...');
     await connectDB();
     
-    // Listen on 0.0.0.0 to allow external connections (required for Render)
-    app.listen(PORT, '0.0.0.0', () => {
+    // In development, listen on localhost; in production, listen on 0.0.0.0 (required for Render)
+    const isDevelopment = (process.env.NODE_ENV || 'development') === 'development';
+    const listenHost = isDevelopment ? 'localhost' : '0.0.0.0';
+    const serverUrl = isDevelopment ? `http://localhost:${PORT}` : `http://0.0.0.0:${PORT}`;
+    
+    app.listen(PORT, listenHost, () => {
       logger.info('='.repeat(50));
       logger.info('✅ Server started successfully!');
       logger.info('='.repeat(50));
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`Port: ${PORT}`);
-      logger.info(`Server URL: http://0.0.0.0:${PORT}`);
-      logger.info(`Health check: http://0.0.0.0:${PORT}/health`);
-      logger.info(`API test: http://0.0.0.0:${PORT}/api/test`);
-      logger.info(`OTP test: http://0.0.0.0:${PORT}/api/otp/test`);
+      logger.info(`Server URL: ${serverUrl}`);
+      logger.info(`Health check: ${serverUrl}/health`);
+      logger.info(`API test: ${serverUrl}/api/test`);
+      logger.info(`OTP test: ${serverUrl}/api/otp/test`);
       logger.info('='.repeat(50));
     });
   } catch (error) {

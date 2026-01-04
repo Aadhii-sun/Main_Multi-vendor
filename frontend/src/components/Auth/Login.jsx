@@ -28,7 +28,12 @@ const Login = () => {
   const [userType, setUserType] = useState('user');
   const [retrying, setRetrying] = useState(false);
   const navigate = useNavigate();
-  const { loginWithOtp, verifyOtp, login } = useAuth();
+  const authContext = useAuth();
+  
+  // Get auth functions with fallbacks to prevent crashes
+  const loginWithOtp = authContext?.loginWithOtp || (() => Promise.resolve({ success: false, error: 'Auth not initialized' }));
+  const verifyOtp = authContext?.verifyOtp || (() => Promise.resolve({ success: false, error: 'Auth not initialized' }));
+  const login = authContext?.login || (() => Promise.resolve({ success: false, error: 'Auth not initialized' }));
 
   const handleSendOTP = async (values, retry = false) => {
     let result;
@@ -233,6 +238,22 @@ const Login = () => {
   });
 
   const heroSrc = '/Black White Minimal Simple Modern Creative Studio Ego Logo.png';
+
+  // Safety check after all hooks - show error if context is not available
+  if (!authContext) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+        <Alert severity="error" sx={{ maxWidth: 500, p: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Authentication Error
+          </Typography>
+          <Typography>
+            Authentication context is not available. Please refresh the page or check that the backend server is running.
+          </Typography>
+        </Alert>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.1fr 1fr' } }}>

@@ -6,7 +6,17 @@ const AuthContext = createContext(null);
 
 // Create a custom hook to use the auth context
 export const useAuth = () => {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  
+  // In development, provide helpful error message if context is null
+  if (!context && import.meta.env.DEV) {
+    console.error(
+      'useAuth must be used within an AuthProvider. ' +
+      'Make sure the component using useAuth is wrapped in <AuthProvider>.'
+    );
+  }
+  
+  return context;
 };
 
 export const AuthProvider = ({ children }) => {

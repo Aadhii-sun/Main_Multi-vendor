@@ -110,10 +110,19 @@ const validateEnv = () => {
   // Log all environment variables status
   logger.debug('Environment Variables Status:', info);
 
-  // Fail if required variables are missing
+  // Fail if required variables are missing (only in production)
+  // In development, warn but don't crash
+  const isDevelopment = (process.env.NODE_ENV || 'development') === 'development';
+  
   if (missing.length > 0) {
-    logger.error('Missing required environment variables:', missing);
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    if (isDevelopment) {
+      logger.warn('Missing required environment variables:', missing);
+      logger.warn('Server will continue in development mode, but some features may not work');
+      logger.warn('Please set these variables in your .env file or system environment');
+    } else {
+      logger.error('Missing required environment variables:', missing);
+      throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    }
   }
 
   // Warn about recommended variables

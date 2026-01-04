@@ -5,16 +5,38 @@
  */
 
 // ============================================
+// ENVIRONMENT DETECTION
+// ============================================
+// Detect if running locally or on production
+// Check for hosting platform environment variables first
+const isHostingPlatform = !!(process.env.RENDER || process.env.VERCEL || process.env.HEROKU);
+// If explicitly set to production on a hosting platform, use production URLs
+// Otherwise, if NODE_ENV is not explicitly 'production' or we're not on a hosting platform, assume local
+const isLocal = !isHostingPlatform || 
+                process.env.NODE_ENV === 'development' ||
+                process.env.BACKEND_HOST?.includes('localhost') ||
+                process.env.BACKEND_HOST?.includes('127.0.0.1') ||
+                (!process.env.NODE_ENV && !isHostingPlatform);
+
+const defaultBackendHost = isLocal 
+  ? `http://localhost:${process.env.PORT || 5000}`
+  : 'https://ego-store-backend.onrender.com';
+
+const defaultFrontendHost = isLocal
+  ? 'http://localhost:5173'
+  : 'https://ego-store-frontend.onrender.com';
+
+// ============================================
 // BACKEND HOST CONFIGURATION
 // ============================================
 // Change these URLs in ONE place - they will be used everywhere
 
 const BACKEND_CONFIG = {
   // Backend Server URL (where this backend is hosted)
-  host: process.env.BACKEND_HOST || process.env.BACKEND_URL || 'https://ego-store-backend.onrender.com',
+  host: process.env.BACKEND_HOST || process.env.BACKEND_URL || defaultBackendHost,
   
   // Frontend URL (for CORS and redirects)
-  frontend: process.env.CLIENT_URL || process.env.FRONTEND_URL || 'https://ego-store-frontend.onrender.com',
+  frontend: process.env.CLIENT_URL || process.env.FRONTEND_URL || defaultFrontendHost,
   
   // API Base Path
   apiPath: '/api',

@@ -5,6 +5,7 @@ const config = require('./env');
 // Determine which email service to use
 const useSendGrid = !!process.env.SENDGRID_API_KEY;
 const useSMTP = !useSendGrid && config.email.user && config.email.pass;
+const isDevelopment = (process.env.NODE_ENV || 'development') === 'development';
 
 // Initialize SendGrid if API key is available
 if (useSendGrid) {
@@ -12,49 +13,106 @@ if (useSendGrid) {
   console.log('✅ SendGrid email service initialized');
 } else if (useSMTP) {
   console.log('✅ SMTP email service will be used (fallback mode)');
+} else if (isDevelopment) {
+  console.log('📧 No email credentials found. Will use Ethereal Email (test service) for local development.');
+  console.log('   To use real emails, set EMAIL_USER and EMAIL_PASS in your .env file');
+  console.log('   For Gmail, use an App Password: https://myaccount.google.com/apppasswords');
 } else {
   console.warn('⚠️  No email service configured. OTP codes will be logged to console.');
 }
 
 // SMTP transporter (fallback for local development)
-const createSMTPTransporter = () => {
-  if (!config.email.user || !config.email.pass) {
-    return null;
+const createSMTPTransporter = async () => {
+  // If credentials are provided, use them
+  if (config.email.user && config.email.pass) {
+    try {
+      // Determine if it's Gmail or custom SMTP
+      const isGmail = config.email.user.includes('gmail.com') || config.email.user.includes('@gmail');
+      
+      const transporterConfig = isGmail 
+        ? {
+            service: 'gmail',
+            auth: {
+              user: config.email.user,
+              pass: config.email.pass
+            },
+            tls: {
+              rejectUnauthorized: false // Only for development
+            }
+          }
+        : {
+            // Custom SMTP configuration
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port: parseInt(process.env.SMTP_PORT || '587'),
+            secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+            auth: {
+              user: config.email.user,
+              pass: config.email.pass
+            },
+            tls: {
+              rejectUnauthorized: false // Only for development
+            }
+          };
+
+      const transporter = nodemailer.createTransport(transporterConfig);
+
+      // Verify connection configuration asynchronously
+      try {
+        await transporter.verify();
+        console.log('✅ SMTP server is ready to send messages');
+      } catch (verifyError) {
+        console.error('⚠️  Error verifying SMTP configuration:', verifyError.message);
+        if (isGmail && verifyError.message.includes('Invalid login')) {
+          console.error('💡 Gmail requires an App Password, not your regular password.');
+          console.error('   Generate one at: https://myaccount.google.com/apppasswords');
+        }
+        // Don't return null - still allow sending (verification might fail but sending might work)
+      }
+
+      return transporter;
+    } catch (error) {
+      console.error('Failed to create SMTP transporter:', error);
+      return null;
+    }
   }
 
-  try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: config.email.user,
-        pass: config.email.pass
-      },
-      tls: {
-        rejectUnauthorized: false // Only for development
-      }
-    });
+  // For local development without credentials, use Ethereal Email (test service)
+  // Use the top-level isDevelopment variable (already declared at line 8)
+  if (isDevelopment) {
+    try {
+      console.log('📧 No email credentials found. Using Ethereal Email (test service) for local development...');
+      const testAccount = await nodemailer.createTestAccount();
+      
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass
+        }
+      });
 
-    // Verify connection configuration
-    transporter.verify((error) => {
-      if (error) {
-        console.error('Error verifying SMTP configuration:', error);
-      } else {
-        console.log('SMTP server is ready to send messages');
-      }
-    });
-
-    return transporter;
-  } catch (error) {
-    console.error('Failed to create SMTP transporter:', error);
-    return null;
+      console.log('✅ Ethereal Email test account created');
+      console.log('   Test emails will be available at: https://ethereal.email');
+      console.log(`   Test account: ${testAccount.user}`);
+      
+      return transporter;
+    } catch (error) {
+      console.error('Failed to create Ethereal test account:', error);
+      return null;
+    }
   }
+
+  return null;
 };
 
 let smtpTransporterInstance;
+let etherealAccount = null;
 
-const getSMTPTransporter = () => {
+const getSMTPTransporter = async () => {
   if (!smtpTransporterInstance) {
-    smtpTransporterInstance = createSMTPTransporter();
+    smtpTransporterInstance = await createSMTPTransporter();
   }
   return smtpTransporterInstance;
 };
@@ -461,6 +519,8 @@ const emailTemplates = {
 // Send email function with enhanced error handling
 const sendEmail = async (to, template, data = {}, options = {}) => {
   try {
+    // Use the top-level isDevelopment variable (already declared at line 8)
+    
     const buildTemplate = emailTemplates[template];
     if (!buildTemplate) {
       const error = `Unknown email template: ${template}`;
@@ -499,9 +559,9 @@ const sendEmail = async (to, template, data = {}, options = {}) => {
         };
       } catch (sgError) {
         console.error('❌ SendGrid email sending failed:', sgError.message);
-        // If SendGrid fails, fall back to SMTP if available
-        if (useSMTP) {
-          console.log('🔄 Falling back to SMTP...');
+        // If SendGrid fails, fall back to SMTP/Ethereal if available
+        if (useSMTP || (isDevelopment && !useSendGrid)) {
+          console.log('🔄 Falling back to SMTP/Ethereal...');
         } else {
           return { success: false, error: sgError.message, provider: 'SendGrid' };
         }
@@ -509,9 +569,23 @@ const sendEmail = async (to, template, data = {}, options = {}) => {
     }
 
     // Fallback to SMTP (for local development)
-    if (useSMTP) {
-      const transporter = getSMTPTransporter();
+    if (useSMTP || (isDevelopment && !useSendGrid)) {
+      const transporter = await getSMTPTransporter();
       if (!transporter) {
+        // In development, log OTP to console as fallback
+        if (template === 'otpLogin' && data.otp) {
+          console.log('\n📧 ============================================');
+          console.log('📧 EMAIL NOT SENT - OTP CODE (for testing):');
+          console.log(`📧 To: ${to}`);
+          console.log(`📧 OTP: ${data.otp}`);
+          console.log('📧 ============================================\n');
+          return { 
+            success: true, 
+            messageId: 'console-logged',
+            provider: 'Console (no email service configured)',
+            otp: data.otp // Include OTP in response for testing
+          };
+        }
         return { success: false, error: 'SMTP transporter not configured' };
       }
 
@@ -524,11 +598,44 @@ const sendEmail = async (to, template, data = {}, options = {}) => {
       };
 
       const info = await transporter.sendMail(mailOptions);
+      
+      // If using Ethereal Email, log the preview URL
+      if (info.messageId && nodemailer.getTestMessageUrl) {
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+          console.log('📧 Email sent via Ethereal (test service)');
+          console.log(`📧 Preview URL: ${previewUrl}`);
+          console.log('📧 View email at: https://ethereal.email');
+        }
+      }
+      
       console.log('✅ Email sent successfully via SMTP:', info.messageId);
-      return { success: true, messageId: info.messageId, provider: 'SMTP' };
+      return { 
+        success: true, 
+        messageId: info.messageId, 
+        provider: 'SMTP',
+        previewUrl: nodemailer.getTestMessageUrl ? nodemailer.getTestMessageUrl(info) : null
+      };
     }
 
-    // No email service configured - return error
+    // No email service configured
+    // Use the top-level isDevelopment variable (already declared at line 8)
+    
+    // In development, log OTP to console as fallback
+    if (isDevelopment && template === 'otpLogin' && data.otp) {
+      console.log('\n📧 ============================================');
+      console.log('📧 EMAIL NOT SENT - OTP CODE (for testing):');
+      console.log(`📧 To: ${to}`);
+      console.log(`📧 OTP: ${data.otp}`);
+      console.log('📧 ============================================\n');
+      return { 
+        success: true, 
+        messageId: 'console-logged',
+        provider: 'Console (no email service configured)',
+        otp: data.otp
+      };
+    }
+    
     return { success: false, error: 'No email service configured (SendGrid or SMTP)' };
 
   } catch (error) {
@@ -543,6 +650,8 @@ const sendEmail = async (to, template, data = {}, options = {}) => {
 // Bulk email function for newsletters
 const sendBulkEmail = async (recipients, template, data = {}, options = {}) => {
   try {
+    // Use the top-level isDevelopment variable (already declared at line 8)
+    
     const buildTemplate = emailTemplates[template];
     if (!buildTemplate) {
       const error = `Unknown email template: ${template}`;
@@ -587,9 +696,9 @@ const sendBulkEmail = async (recipients, template, data = {}, options = {}) => {
           results.push({ email: recipient.email, success: false, error: error.message });
         }
       }
-    } else if (useSMTP) {
+    } else if (useSMTP || (isDevelopment && !useSendGrid)) {
       // Fallback to SMTP
-      const transporter = getSMTPTransporter();
+      const transporter = await getSMTPTransporter();
       if (!transporter) {
         return { success: false, error: 'SMTP transporter not configured' };
       }

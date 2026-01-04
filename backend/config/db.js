@@ -3,6 +3,19 @@ const logger = require('./logger');
 
 const connectDB = async () => {
   try {
+    // Check if MONGO_URI is set
+    if (!process.env.MONGO_URI) {
+      const isDevelopment = (process.env.NODE_ENV || 'development') === 'development';
+      if (isDevelopment) {
+        logger.warn('⚠️  MONGO_URI not set. Database connection skipped in development mode.');
+        logger.warn('   Please set MONGO_URI in your .env file to enable database features.');
+        return; // Don't crash, just skip connection
+      } else {
+        logger.error('❌ MONGO_URI is required in production');
+        process.exit(1);
+      }
+    }
+    
     logger.info('Attempting to connect to MongoDB...');
     
     // Set mongoose options
@@ -34,6 +47,8 @@ const connectDB = async () => {
     });
     
   } catch (error) {
+    const isDevelopment = (process.env.NODE_ENV || 'development') === 'development';
+    
     logger.error('\n❌ MongoDB Connection Failed!');
     logger.error('Error:', { message: error.message, name: error.name });
     
@@ -52,7 +67,14 @@ const connectDB = async () => {
     logger.error('4. Verify MongoDB URI format');
     logger.error('5. Ensure username/password are URL-encoded');
     
-    process.exit(1);
+    // In development, warn but don't crash (allows server to start without DB)
+    // In production, exit since DB is critical
+    if (isDevelopment) {
+      logger.warn('⚠️  Server will continue without database connection in development mode');
+      logger.warn('   Some features will not work until MongoDB is connected');
+    } else {
+      process.exit(1);
+    }
   }
 };
 

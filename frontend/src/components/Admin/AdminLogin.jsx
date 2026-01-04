@@ -41,7 +41,13 @@ const AdminLogin = () => {
         setError('');
         
         // Try direct admin access first
-        const directRes = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/direct-access`, {
+        // Use localhost in development, environment variable or Render URL in production
+        const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development';
+        const apiBaseUrl = isDevelopment 
+          ? 'http://localhost:5000'
+          : (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'https://ego-store-backend.onrender.com');
+        
+        const directRes = await fetch(`${apiBaseUrl}/api/admin/direct-access`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

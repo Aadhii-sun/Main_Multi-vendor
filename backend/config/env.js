@@ -1,54 +1,83 @@
 const fs = require('fs');
 const path = require('path');
 
-// Load environment variables from .env file when available
+// Try to use dotenv first (more reliable parsing)
+let dotenvLoaded = false;
+try {
+  require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+  dotenvLoaded = true;
+  console.log(`Loaded environment variables using dotenv from ${path.relative(process.cwd(), path.resolve(__dirname, '../.env'))}`);
+} catch (error) {
+  // Fallback to manual parsing if dotenv fails
+  console.warn('dotenv not available or failed, using manual parsing');
+}
+
+// Load environment variables from .env file when available (fallback method)
 const envPath = path.resolve(__dirname, '../.env');
 let envConfig = {};
 
-try {
-  if (fs.existsSync(envPath)) {
-    envConfig = fs
-      .readFileSync(envPath, 'utf-8')
-      .split('\n')
-      .filter(Boolean) // Remove empty lines
-      .reduce((acc, line) => {
-        const trimmed = line.trim();
+if (!dotenvLoaded) {
+  try {
+    if (fs.existsSync(envPath)) {
+      envConfig = fs
+        .readFileSync(envPath, 'utf-8')
+        .split('\n')
+        .filter(Boolean) // Remove empty lines
+        .reduce((acc, line) => {
+          const trimmed = line.trim();
 
-        // Skip comments or invalid lines
-        if (!trimmed || trimmed.startsWith('#')) {
-          return acc;
-        }
+          // Skip comments or invalid lines
+          if (!trimmed || trimmed.startsWith('#')) {
+            return acc;
+          }
 
-        const [key, ...valueParts] = trimmed.split('=');
-        if (!key) {
-          return acc;
-        }
+          // Handle key=value format, supporting values with = signs (like MongoDB URIs)
+          const equalIndex = trimmed.indexOf('=');
+          if (equalIndex === -1) {
+            return acc;
+          }
 
-        const value = valueParts.join('=').trim();
+          const key = trimmed.substring(0, equalIndex).trim();
+          const value = trimmed.substring(equalIndex + 1).trim();
 
-        // Only set if not already set (allows overriding with system env vars)
-        if (!process.env[key]) {
-          process.env[key] = value;
-        }
+          if (!key) {
+            return acc;
+          }
 
-        return { ...acc, [key]: value };
-      }, {});
+          // Only set if not already set (allows overriding with system env vars)
+          if (!process.env[key]) {
+            process.env[key] = value;
+          }
 
-    console.log(`Loaded environment variables from ${path.relative(process.cwd(), envPath)}`);
-  } else {
-    console.warn(`No .env file found at ${path.relative(process.cwd(), envPath)}. Relying on existing environment variables.`);
+          return { ...acc, [key]: value };
+        }, {});
+
+      console.log(`Loaded environment variables from ${path.relative(process.cwd(), envPath)}`);
+    } else {
+      console.warn(`No .env file found at ${path.relative(process.cwd(), envPath)}. Relying on existing environment variables.`);
+    }
+  } catch (error) {
+    console.error('Failed to load .env file:', error.message);
   }
-} catch (error) {
-  console.error('Failed to load .env file:', error.message);
 }
 
 // Verify required environment variables
 const requiredEnvVars = ['MONGO_URI', 'JWT_SECRET'];
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
+// In development, allow missing vars but warn (they might be set in .env or system env)
+// In production, exit if required vars are missing
+const isDevelopment = (process.env.NODE_ENV || 'development') === 'development';
+
 if (missingVars.length > 0) {
-  console.error('❌ Missing required environment variables:', missingVars.join(', '));
-  process.exit(1);
+  if (isDevelopment) {
+    console.warn('⚠️  Missing required environment variables:', missingVars.join(', '));
+    console.warn('   Please set these in your .env file or system environment variables');
+    console.warn('   The server will continue, but some features may not work correctly');
+  } else {
+    console.error('❌ Missing required environment variables:', missingVars.join(', '));
+    process.exit(1);
+  }
 }
 
 // Email configuration check
@@ -82,7 +111,8 @@ module.exports = {
   jwtSecret: process.env.JWT_SECRET,
   email: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    pass: process.env.EMAIL_PASS,
+    from: process.env.EMAIL_USER ? `"E-commerce Team" <${process.env.EMAIL_USER}>` : undefined
   },
   sendgrid: {
     apiKey: process.env.SENDGRID_API_KEY,
